@@ -1,0 +1,29 @@
+name: Upload to kaggle
+on:
+  push:
+    branches:
+      - hungry_geese
+
+jobs:
+  upload_to_kaggle:
+    name: Upload to kaggle
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install kaggle api
+        run: pip install kaggle
+
+      - name: Upload to kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLEUSERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLEKEY }}
+        run: kaggle datasets version -m "${{ github.sha }}" -r zip
