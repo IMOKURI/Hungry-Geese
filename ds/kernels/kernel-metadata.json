@@ -1,0 +1,20 @@
+{
+  "id": "imokuri/hungry-geese-evaluation",
+  "id_no": 15385499,
+  "title": "Hungry Geese - Evaluation",
+  "code_file": "hungry-geese-evaluation.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "keywords": [],
+  "dataset_sources": [
+    "imokuri/hungry-geese-sources",
+    "imokuri/hungry-geese-models"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "hungry-geese"
+  ]
+}
