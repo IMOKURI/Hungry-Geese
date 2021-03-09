@@ -1,13 +1,7 @@
 .DEFAULT_GOAL := help
 
-model: ## Push model.
-	@$(MAKE) -C ds/models/ push
-
-eval: ## Push evaluation kernel.
-	@$(MAKE) -C ds/eval/ push
-
-submit: ## Push submission kernel.
-	@$(MAKE) -C ds/submit/ push
+push: ## Push kernel
+	@kaggle kernels push
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
