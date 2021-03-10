@@ -26,13 +26,16 @@ This parameters are used for training (`python main.py --train`, `python main.py
     * Whether using opponent features in training
 * `gamma`, type = double, constraints: 0.0 <= `gamma` <= 1.0
     * discount rate
+    * 先の報酬をどのくらい減らすか - 例えば gamma が 0.8 なら 10ステップ先の評価は 0.8 ^ 10 = 0.1 倍される
 * `forward_steps`, type = int
     * steps used to make n-step return estimates for calculating targets of value and advantages of policy
+    * 何ステップ先までの行動を評価の対象とするか
 * `compress_steps`, type = int
     * steps to compress episode data for efficient data handling
     * **NOTE** system parameter, so basically no need to change
 * `entropy_regularization`, type = double, constraints: `entropy_regularization` >= 0.0
     * coefficient of entropy regularization
+    * ランダムな行動をする確率 - 最初は探索の幅を取るために少し大きめに 最強を作りたいときは 0 にするとよさそう
 * `entropy_regularization_decay`, type = double, constraints: 0.0 <= `entropy_regularization` <= 1.0
     * decay rate of entropy regularization over step progress
     * **NOTE** HandyRL reduces the effect of entropy regularization as the turn progresses
@@ -59,6 +62,7 @@ This parameters are used for training (`python main.py --train`, `python main.py
 * `lambda`, type = double, constraints: 0.0 <= `lambda` <= 1.0
     * the parameter for lambda values
     * **NOTE** HandyRL computes values using in lambda fashion such as TD, V-Trace, UPGO
+    * n が 1 だと最終的な報酬を重視, n が 0 だと直近の報酬を重視
 * `policy_target`, type = enum
     * advantage for policy gradient loss
     * `MC`, monte carlo
