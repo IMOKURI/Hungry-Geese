@@ -28,7 +28,7 @@ train_args:
     policy_target: 'VTRACE' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 2789
-    restart_epoch: 0
+    restart_epoch: 2775
 
 
 worker_args:
