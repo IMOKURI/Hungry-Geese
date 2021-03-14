@@ -42,6 +42,16 @@ class RuleBasedAgentSmartGeese(RandomAgent):
         return env.rule_based_action_smart_geese(player)
 
 
+class RuleBasedAgentSmartGeeseV24(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "smart_goose_v24")
+
+
+class RuleBasedAgentSmartGeeseV33(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "smart_goose_v33")
+
+
 def view(env, player=None):
     if hasattr(env, 'view'):
         env.view(player=player)
@@ -390,7 +400,13 @@ def eval_main(args, argv):
     print('seed = %d' % seed)
 
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
-    agents = [agent1] + [RuleBasedAgentSmartGeese() for _ in range(len(env.players()) - 1)]
+    # agents = [agent1] + [RuleBasedAgentSmartGeese() for _ in range(len(env.players()) - 1)]
+    agents = [
+        agent1,
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeeseV24(),
+        RuleBasedAgentSmartGeeseV33(),
+    ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
 

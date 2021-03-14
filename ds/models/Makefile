@@ -4,7 +4,7 @@ NOW = $(shell date '+%Y%m%d-%H%M%S')
 HEAD_COMMIT = $(shell git rev-parse HEAD)
 MODEL_VERSION := $(shell ls -t1 ../../models/ | head -2 | grep -v latest)
 push: ## Push models as dataset
-	@rm -f ./*.pth
+	@rm -f ./[0-9]*.pth
 	@cp ../../models/latest.pth ../../models/$(MODEL_VERSION) .
 	@kaggle datasets version -m $(HEAD_COMMIT)-$(MODEL_VERSION)-$(NOW) -r zip
 
