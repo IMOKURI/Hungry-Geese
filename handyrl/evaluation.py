@@ -47,6 +47,11 @@ class RuleBasedAgentSmartGeeseV24(RandomAgent):
         return env.rule_based_action_smart_geese(player, "smart_goose_v24")
 
 
+class RuleBasedAgentSmartGeeseV32(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "smart_goose_v32")
+
+
 class RuleBasedAgentSmartGeeseV33(RandomAgent):
     def action(self, env, player, show=False):
         return env.rule_based_action_smart_geese(player, "smart_goose_v33")
@@ -400,11 +405,10 @@ def eval_main(args, argv):
     print('seed = %d' % seed)
 
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
-    # agents = [agent1] + [RuleBasedAgentSmartGeese() for _ in range(len(env.players()) - 1)]
     agents = [
         agent1,
         RuleBasedAgentSmartGeese(),
-        RuleBasedAgentSmartGeeseV24(),
+        RuleBasedAgentSmartGeeseV32(),
         RuleBasedAgentSmartGeeseV33(),
     ]
 
