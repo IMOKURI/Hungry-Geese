@@ -6,14 +6,10 @@
 
 <details>
 
-<summary> `config.yaml` </summary>
+<summary> config.yaml </summary>
 
 ```yaml
 env_args:
-    # env: 'TicTacToe'
-    # source: 'handyrl.envs.tictactoe'
-    # env: 'Geister'
-    # source: 'handyrl.envs.geister'
     env: 'HungryGeese'
     source: 'handyrl.envs.kaggle.hungry_geese'
 
@@ -49,18 +45,16 @@ worker_args:
 
 </details>
 
+- [[HandyRL] Enjoy Distributed Reinforcement Learning (Rating ~1100, February 10)](https://www.kaggle.com/c/hungry-geese/discussion/218190)
+
 ### Second Stage
 
 <details>
 
-<summary> `config.yaml` </summary>
+<summary> config.yaml </summary>
 
 ```yaml
 env_args:
-    # env: 'TicTacToe'
-    # source: 'handyrl.envs.tictactoe'
-    # env: 'Geister'
-    # source: 'handyrl.envs.geister'
     env: 'HungryGeese'
     source: 'handyrl.envs.kaggle.hungry_geese'
 
@@ -72,7 +66,8 @@ train_args:
     forward_steps: 32
     compress_steps: 4
     entropy_regularization: 2.0e-3
-    entropy_regularization_decay: 0.3    update_episodes: 500
+    entropy_regularization_decay: 0.3
+    update_episodes: 500
     batch_size: 500  # GPU memory 12GB
     minimum_episodes: 10000
     maximum_episodes: 500000
