@@ -76,14 +76,13 @@ class Environment(BaseEnvironment):
     NUM_AGENTS = 4
     NUM_ROW = 7
     NUM_COL = 11
+    CENTER_ROW = NUM_ROW // 2
+    CENTER_COL = NUM_COL // 2
 
     def __init__(self, args={}):
         super().__init__()
         self.env = make("hungry_geese")
         self.reset()
-        self.to_row = {}
-        self.to_col = {}
-        self.calc_adjustment()
 
     def reset(self, args={}):
         obs = self.env.reset(num_agents=self.NUM_AGENTS)
@@ -241,41 +240,48 @@ class Environment(BaseEnvironment):
     def net(self):
         return GeeseNet
 
-    def calc_adjustment(self):
-        center_row = self.NUM_ROW // 2
-        center_col = self.NUM_COL // 2
-        for i in range(self.NUM_ROW * self.NUM_COL):
-            self.to_row[i] = (i // self.NUM_COL + center_row) % self.NUM_ROW
-            self.to_col[i] = (i + center_col) % self.NUM_COL
+    def to_offset(self, x):
+        row = self.CENTER_ROW - x // self.NUM_COL
+        col = self.CENTER_COL - x % self.NUM_COL
+        return row, col
+
+    def to_row(self, offset, x):
+        return (x // self.NUM_COL + offset) % self.NUM_ROW
+
+    def to_col(self, offset, x):
+        return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7, 11), dtype=np.float32)
+        b = np.zeros((self.NUM_AGENTS * 4 + 1, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
         obs = self.obs_list[-1][0]['observation']
+
+        player_goose_head = obs['geese'][player][0]
+        o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
             # head position
             for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, self.to_row[pos], self.to_col[pos]] = 1
+                b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
             # tip position
             for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, self.to_row[pos], self.to_col[pos]] = 1
+                b[4 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
             # whole position
             for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, self.to_row[pos], self.to_col[pos]] = 1
+                b[8 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, self.to_row[pos], self.to_col[pos]] = 1
+                    b[12 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
         # food
         for pos in obs['food']:
-            b[16, self.to_row[pos], self.to_col[pos]] = 1
+            b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
         return b
 
