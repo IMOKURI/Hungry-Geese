@@ -1,5 +1,12 @@
 # Kaggle - Hungry Geese with HandyRL
 
+## Memo
+
+- [[HandyRL] Enjoy Distributed Reinforcement Learning](https://www.kaggle.com/c/hungry-geese/discussion/218190)
+    - [Smart Geese Trained by Reinforcement Learning](https://www.kaggle.com/yuricat/smart-geese-trained-by-reinforcement-learning/comments)
+- [the head of your own goose is always placed at the center of the board](https://www.kaggle.com/c/hungry-geese/discussion/226318)
+
+
 ## Training Configuration
 
 ### First Stage
