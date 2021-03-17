@@ -14,7 +14,7 @@ train_args:
     gamma: 0.9
     forward_steps: 32
     compress_steps: 4
-    entropy_regularization: 1.0e-3
+    entropy_regularization: 0  # 2.0e-3
     entropy_regularization_decay: 0.3
     update_episodes: 500
     batch_size: 500  # GPU memory 12GB
@@ -26,8 +26,8 @@ train_args:
         num_parallel: 6
     lambda: 0.8
     policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
-    value_target: 'TD' # 'VTRACE' 'TD' 'MC'
-    seed: 3678
+    value_target: 'VTRACE' # 'VTRACE' 'TD' 'MC'
+    seed: 3901
     restart_epoch: 3257
 
 
