@@ -254,7 +254,7 @@ class Evaluator:
         self.env = env
         self.args = args
         # self.default_agent = RandomAgent()  # RuleBasedAgent, trained agent, etc.
-        self.default_agent = RuleBasedAgentSmartGeese()  # RuleBasedAgent, trained agent, etc.
+        self.default_agent = RuleBasedAgentSmartGeeseV40()  # RuleBasedAgent, trained agent, etc.
 
     def execute(self, models, args):
         agents = {}
@@ -412,8 +412,8 @@ def eval_main(args, argv):
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
         agent1,
-        RuleBasedAgentSmartGeeseV32(),
-        RuleBasedAgentSmartGeeseV33(),
+        RuleBasedAgentSmartGeeseV40(),
+        RuleBasedAgentSmartGeeseV40(),
         RuleBasedAgentSmartGeeseV40(),
     ]
 
