@@ -7,7 +7,6 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import random
-import itertools
 import importlib
 
 import numpy as np
@@ -20,6 +19,7 @@ from kaggle_environments import make
 
 from ...environment import BaseEnvironment
 from ...model import BaseModel
+from .models.gtrxl_torch import GTrXL
 
 
 class TorusConv2d(nn.Module):
@@ -66,6 +66,32 @@ class GeeseNet(BaseModel):
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
         h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
+        v = torch.tanh(self.head_v2(h_v))
+
+        return {"policy": p, "value": v}
+
+
+class GeeseNetGTrXL(BaseModel):
+    def __init__(self, env, args={}):
+        super().__init__(env, args)
+        d_model = env.observation().shape[1]
+        filters = 64
+
+        self.gtrxl = GTrXL(d_model=d_model, nheads=4, transformer_layers=1, hidden_dims=256, n_layers=1)
+
+        self.head_p1 = nn.Linear(77 * d_model, filters, bias=False)
+        self.head_p2 = nn.Linear(filters, 4, bias=False)
+        self.head_v1 = nn.Linear(77 * d_model, filters, bias=False)
+        self.head_v2 = nn.Linear(filters, 1, bias=False)
+
+    def forward(self, x, _=None):
+        h = self.gtrxl(x)
+        h = h.reshape(-1, h.size(1) * h.size(2))  # 77 * 16 = 1232
+
+        h_p = F.relu_(self.head_p1(h))
+        p = self.head_p2(h_p)
+
+        h_v = F.relu_(self.head_v1(h))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -238,7 +264,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return GeeseNetGTrXL
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -255,7 +281,7 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
+        b = np.zeros((self.NUM_AGENTS * 4, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
@@ -264,7 +290,8 @@ class Environment(BaseEnvironment):
         for p, geese in enumerate(obs['geese']):
             # head position
             for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                if p != player:
+                    b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
             # tip position
             for pos in geese[-1:]:
                 b[4 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
@@ -281,9 +308,9 @@ class Environment(BaseEnvironment):
 
         # food
         for pos in obs['food']:
-            b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+            b[0, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
-        return b
+        return b.transpose(1, 2, 0).reshape(-1, 16)
 
 
 if __name__ == '__main__':
