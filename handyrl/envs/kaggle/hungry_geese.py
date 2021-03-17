@@ -77,7 +77,7 @@ class GeeseNetGTrXL(BaseModel):
         d_model = env.observation().shape[1]
         filters = 64
 
-        self.gtrxl = GTrXL(d_model=d_model, nheads=4, transformer_layers=1, hidden_dims=256, n_layers=1)
+        self.gtrxl = GTrXL(d_model=d_model, nheads=4, transformer_layers=1, hidden_dims=4, n_layers=1)
 
         self.head_p1 = nn.Linear(77 * d_model, filters, bias=False)
         self.head_p2 = nn.Linear(filters, 4, bias=False)
