@@ -21,7 +21,7 @@ Injects some information on the relevant position of the img in the sequence
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=2400):
+    def __init__(self, d_model, dropout=0.1, max_len=1600):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
         pe = T.zeros(max_len, d_model)
