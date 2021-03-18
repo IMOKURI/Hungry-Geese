@@ -79,14 +79,14 @@ class GeeseNetGTrXL(BaseModel):
 
         self.gtrxl = GTrXL(d_model=d_model, nheads=4, transformer_layers=1, hidden_dims=4, n_layers=1)
 
-        self.head_p1 = nn.Linear(77 * d_model, filters, bias=False)
+        self.head_p1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
         self.head_p2 = nn.Linear(filters, 4, bias=False)
-        self.head_v1 = nn.Linear(77 * d_model, filters, bias=False)
+        self.head_v1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
         self.head_v2 = nn.Linear(filters, 1, bias=False)
 
     def forward(self, x, _=None):
         h = self.gtrxl(x)
-        h = h.reshape(-1, h.size(1) * h.size(2))  # 77 * 16 = 1232
+        h = h.reshape(-1, h.size(1) * h.size(2))  # 16 * 64 = 1024
 
         h_p = F.relu_(self.head_p1(h))
         p = self.head_p2(h_p)
@@ -104,6 +104,27 @@ class Environment(BaseEnvironment):
     NUM_COL = 11
     CENTER_ROW = NUM_ROW // 2
     CENTER_COL = NUM_COL // 2
+
+    GEESE_HEAD = {
+        0: np.array([255, 121, 121, 255], dtype=np.uint8),
+        1: np.array([106, 176, 76, 255], dtype=np.uint8),
+        2: np.array([104, 109, 224, 255], dtype=np.uint8),
+        3: np.array([224, 86, 253, 255], dtype=np.uint8),
+    }
+    GEESE_BODY = {
+        0: np.array([255, 121, 121, 200], dtype=np.uint8),
+        1: np.array([106, 176, 76, 200], dtype=np.uint8),
+        2: np.array([104, 109, 224, 200], dtype=np.uint8),
+        3: np.array([224, 86, 253, 200], dtype=np.uint8),
+    }
+    GEESE_TIP = {
+        0: np.array([255, 121, 121, 150], dtype=np.uint8),
+        1: np.array([106, 176, 76, 150], dtype=np.uint8),
+        2: np.array([104, 109, 224, 150], dtype=np.uint8),
+        3: np.array([224, 86, 253, 150], dtype=np.uint8),
+    }
+
+    FOOD = np.array([249, 202, 36, 255], dtype=np.uint8)
 
     def __init__(self, args={}):
         super().__init__()
@@ -281,36 +302,68 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
+        b = np.full((7, 11, self.GEESE_HEAD[0].shape[0]), 255, dtype=np.uint8)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
         o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
+            key = p - player % self.NUM_AGENTS
+
             # head position
             for pos in geese[:1]:
-                if p != player:
-                    b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
-            # tip position
-            for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_HEAD[key]
             # whole position
-            for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+            for pos in geese[1:-1]:
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_BODY[key]
+            # tip position
+            if len(geese) > 1:
+                for pos in geese[-1:]:
+                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_TIP[key]
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
-                for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                if p - player % self.NUM_AGENTS == 0 and len(geese) in (1, 2):
+                    b[self.to_row(o_row, geese[0]), self.to_col(o_col, geese[0])] = self.GEESE_BODY[0]
 
         # food
         for pos in obs['food']:
-            b[0, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.FOOD
 
-        return b.transpose(1, 2, 0).reshape(-1, 16)
+        # normalize
+        b = b / 255.0
+
+        # to 16x16
+        b = np.pad(b, ((4, 5), (2, 3), (0, 0)), "constant")
+
+        # to channel first
+        b = b.transpose(2, 0, 1)
+
+        # split to patches and flatten
+        patch = 16
+        row, col = 4, 4
+        size_ = 4
+        p = np.zeros((patch, row * col * self.GEESE_HEAD[0].shape[0]), dtype=np.float32)
+        for i in range(patch):
+            out = b[:, row-size_:row, col-size_:col]
+            flat = out.reshape(-1)
+            p[i] = flat
+
+            if (i + 1) % 4 == 0:
+                row += size_
+                col = size_
+                if row > 16:
+                    row = size_
+
+            else:
+                col += size_
+                if col > 16:
+                    col = size_
+
+        return p
 
 
 if __name__ == '__main__':
