@@ -309,7 +309,7 @@ class Environment(BaseEnvironment):
         o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
-            key = p - player % self.NUM_AGENTS
+            key = (p - player) % self.NUM_AGENTS
 
             # head position
             for pos in geese[:1]:
@@ -326,7 +326,7 @@ class Environment(BaseEnvironment):
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
-                if p - player % self.NUM_AGENTS == 0 and len(geese) in (1, 2):
+                if (p - player) % self.NUM_AGENTS == 0 and len(geese) in (1, 2):
                     b[self.to_row(o_row, geese[0]), self.to_col(o_col, geese[0])] = self.GEESE_BODY[0]
 
         # food
