@@ -101,36 +101,34 @@ class GeeseNetGTrXL(BaseModel):
 class GeeseNetViT(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        # d_model = env.observation().shape[1]
-        # filters = 64
+        output_size = 512
+        filters = 64
 
         self.vit = ViT(
             image_size=16,
             patch_size=2,
-            num_classes=4,
-            dim=256,
+            num_classes=output_size,
+            dim=1024,
             depth=1,
             heads=4,
-            mlp_dim=256,
+            mlp_dim=512,
         )
 
-        # self.head_p1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
-        # self.head_p2 = nn.Linear(filters, 4, bias=False)
-        # self.head_v1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
-        # self.head_v2 = nn.Linear(filters, 1, bias=False)
+        self.head_p1 = nn.Linear(output_size, filters, bias=False)
+        self.head_p2 = nn.Linear(filters, 4, bias=False)
+        self.head_v1 = nn.Linear(output_size, filters, bias=False)
+        self.head_v2 = nn.Linear(filters, 1, bias=False)
 
     def forward(self, x, _=None):
         h = self.vit(x.float())
-        # h = h.reshape(-1, h.size(1) * h.size(2))  # 16 * 64 = 1024
 
-        # h_p = F.relu_(self.head_p1(h))
-        # p = self.head_p2(h_p)
+        h_p = F.relu_(self.head_p1(h))
+        p = self.head_p2(h_p)
 
-        # h_v = F.relu_(self.head_v1(h))
-        # v = torch.tanh(self.head_v2(h_v))
+        h_v = F.relu_(self.head_v1(h))
+        v = torch.tanh(self.head_v2(h_v))
 
-        # return {"policy": p, "value": v}
-        return {"policy": h}
+        return {"policy": p, "value": v}
 
 
 class Environment(BaseEnvironment):
