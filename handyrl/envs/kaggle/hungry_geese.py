@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from vit_pytorch import ViT
 
 # You need to install kaggle_environments, requests
 from kaggle_environments import make
@@ -97,6 +98,41 @@ class GeeseNetGTrXL(BaseModel):
         return {"policy": p, "value": v}
 
 
+class GeeseNetViT(BaseModel):
+    def __init__(self, env, args={}):
+        super().__init__(env, args)
+        # d_model = env.observation().shape[1]
+        # filters = 64
+
+        self.vit = ViT(
+            image_size=16,
+            patch_size=2,
+            num_classes=4,
+            dim=256,
+            depth=1,
+            heads=4,
+            mlp_dim=256,
+        )
+
+        # self.head_p1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
+        # self.head_p2 = nn.Linear(filters, 4, bias=False)
+        # self.head_v1 = nn.Linear(env.observation().shape[0] * d_model, filters, bias=False)
+        # self.head_v2 = nn.Linear(filters, 1, bias=False)
+
+    def forward(self, x, _=None):
+        h = self.vit(x)
+        # h = h.reshape(-1, h.size(1) * h.size(2))  # 16 * 64 = 1024
+
+        # h_p = F.relu_(self.head_p1(h))
+        # p = self.head_p2(h_p)
+
+        # h_v = F.relu_(self.head_v1(h))
+        # v = torch.tanh(self.head_v2(h_v))
+
+        # return {"policy": p, "value": v}
+        return {"policy": h}
+
+
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
@@ -106,25 +142,25 @@ class Environment(BaseEnvironment):
     CENTER_COL = NUM_COL // 2
 
     GEESE_HEAD = {
-        0: np.array([255, 121, 121, 255], dtype=np.uint8),
-        1: np.array([106, 176, 76, 255], dtype=np.uint8),
-        2: np.array([104, 109, 224, 255], dtype=np.uint8),
-        3: np.array([224, 86, 253, 255], dtype=np.uint8),
+        0: np.array([166, 19, 3], dtype=np.uint8),
+        1: np.array([10, 143, 67], dtype=np.uint8),
+        2: np.array([21, 123, 191], dtype=np.uint8),
+        3: np.array([107, 27, 140], dtype=np.uint8),
     }
     GEESE_BODY = {
-        0: np.array([255, 121, 121, 200], dtype=np.uint8),
-        1: np.array([106, 176, 76, 200], dtype=np.uint8),
-        2: np.array([104, 109, 224, 200], dtype=np.uint8),
-        3: np.array([224, 86, 253, 200], dtype=np.uint8),
+        0: np.array([231, 76, 60], dtype=np.uint8),
+        1: np.array([48, 171, 60], dtype=np.uint8),
+        2: np.array([52, 152, 219], dtype=np.uint8),
+        3: np.array([155, 89, 182], dtype=np.uint8),
     }
     GEESE_TIP = {
-        0: np.array([255, 121, 121, 150], dtype=np.uint8),
-        1: np.array([106, 176, 76, 150], dtype=np.uint8),
-        2: np.array([104, 109, 224, 150], dtype=np.uint8),
-        3: np.array([224, 86, 253, 150], dtype=np.uint8),
+        0: np.array([240, 148, 139], dtype=np.uint8),
+        1: np.array([119, 224, 130], dtype=np.uint8),
+        2: np.array([121, 191, 237], dtype=np.uint8),
+        3: np.array([212, 157, 235], dtype=np.uint8),
     }
 
-    FOOD = np.array([249, 202, 36, 255], dtype=np.uint8)
+    FOOD = np.array([241, 196, 15], dtype=np.uint8)
 
     def __init__(self, args={}):
         super().__init__()
@@ -285,7 +321,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetGTrXL
+        return GeeseNetViT
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -337,33 +373,12 @@ class Environment(BaseEnvironment):
         b = b / 255.0
 
         # to 16x16
-        b = np.pad(b, ((4, 5), (2, 3), (0, 0)), "constant")
+        b = np.pad(b, ((0, 9), (0, 5), (0, 0)), "constant")
 
         # to channel first
         b = b.transpose(2, 0, 1)
 
-        # split to patches and flatten
-        patch = 16
-        row, col = 4, 4
-        size_ = 4
-        p = np.zeros((patch, row * col * self.GEESE_HEAD[0].shape[0]), dtype=np.float32)
-        for i in range(patch):
-            out = b[:, row-size_:row, col-size_:col]
-            flat = out.reshape(-1)
-            p[i] = flat
-
-            if (i + 1) % 4 == 0:
-                row += size_
-                col = size_
-                if row > 16:
-                    row = size_
-
-            else:
-                col += size_
-                if col > 16:
-                    col = size_
-
-        return p
+        return b
 
 
 if __name__ == '__main__':
