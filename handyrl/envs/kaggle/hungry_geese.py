@@ -120,7 +120,7 @@ class GeeseNetViT(BaseModel):
         # self.head_v2 = nn.Linear(filters, 1, bias=False)
 
     def forward(self, x, _=None):
-        h = self.vit(x)
+        h = self.vit(x.float())
         # h = h.reshape(-1, h.size(1) * h.size(2))  # 16 * 64 = 1024
 
         # h_p = F.relu_(self.head_p1(h))
