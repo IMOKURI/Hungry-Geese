@@ -23,9 +23,6 @@ from ...model import BaseModel
 from .models.gtrxl_torch import GTrXL
 
 
-torch.set_default_dtype(torch.float32)
-
-
 class TorusConv2d(nn.Module):
     def __init__(self, input_dim, output_dim, kernel_size, bn):
         super().__init__()
@@ -341,7 +338,7 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.full((7, 11, self.GEESE_HEAD[0].shape[0]), 255, dtype=np.uint8)
+        b = np.full((7, 11, self.GEESE_HEAD[0].shape[0]), 255, dtype=np.float32)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
