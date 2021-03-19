@@ -57,11 +57,11 @@ class GeeseNet(BaseModel):
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(self.conv_p(h))
+        h_p = F.relu_(h + self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         p = self.head_p(h_head_p)
 
-        h_v = F.relu_(self.conv_v(h))
+        h_v = F.relu_(h + self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
