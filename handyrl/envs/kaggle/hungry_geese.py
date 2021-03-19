@@ -23,6 +23,9 @@ from ...model import BaseModel
 from .models.gtrxl_torch import GTrXL
 
 
+torch.set_default_dtype(torch.float32)
+
+
 class TorusConv2d(nn.Module):
     def __init__(self, input_dim, output_dim, kernel_size, bn):
         super().__init__()
