@@ -336,39 +336,38 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.full((7, 11, self.GEESE_HEAD[0].shape[0]), 255, dtype=np.float32)
+        b = np.full((7 * 11, self.GEESE_HEAD[0].shape[0]), 255, dtype=np.float32)
         obs = self.obs_list[-1][0]['observation']
-
-        player_goose_head = obs['geese'][player][0]
-        o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
             key = (p - player) % self.NUM_AGENTS
 
             # head position
             for pos in geese[:1]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_HEAD[key]
+                b[pos] = self.GEESE_HEAD[key]
             # whole position
             for pos in geese[1:-1]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_BODY[key]
+                b[pos] = self.GEESE_BODY[key]
             # tip position
             if len(geese) > 1:
                 for pos in geese[-1:]:
-                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.GEESE_TIP[key]
+                    b[pos] = self.GEESE_TIP[key]
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 if (p - player) % self.NUM_AGENTS == 0 and len(geese) in (1, 2):
-                    b[self.to_row(o_row, geese[0]), self.to_col(o_col, geese[0])] = self.GEESE_BODY[0]
+                    b[geese[0]] = self.GEESE_BODY[0]
 
         # food
         for pos in obs['food']:
-            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = self.FOOD
+            b[pos] = self.FOOD
 
         # normalize
         b = b / 255.0
+
+        b = b.reshape(7, 11, self.GEESE_HEAD[0].shape[0])
 
         # to 16x16
         b = np.pad(b, ((0, 9), (0, 5), (0, 0)), "constant")
