@@ -129,7 +129,7 @@ class GeeseNetIMO(BaseModel):
         blocks = 5
         filters = 64
         final_filters = 128
-        input_= env.observation().shape
+        input_= env.observation().shape[0]
 
         self.encoder = self.GeeseEncoder(input_, filters)
         self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
