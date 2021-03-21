@@ -84,7 +84,7 @@ class GeeseNetIMO(BaseModel):
             h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
             h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
             h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
-            return h  # size: (bs, filters)
+            return h
 
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
@@ -306,7 +306,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return GeeseNetIMO
 
     def observation(self, player=None):
         if player is None:
