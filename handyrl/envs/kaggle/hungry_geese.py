@@ -83,7 +83,7 @@ class GeeseNetIMO(BaseModel):
             h = F.relu_(self.conv0(x))
             h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
             h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-            h = torch.cat([h_head, h_avg], 1)
+            h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
             return h  # size: (bs, filters)
 
     class GeeseBlock(nn.Module):
@@ -91,8 +91,8 @@ class GeeseNetIMO(BaseModel):
             super().__init__()
             self.attention = nn.MultiheadAttention(embed_dim, num_heads)
 
-        def forward(self, x, y, z):
-            h, _ = self.attention(x, y, z)
+        def forward(self, x):
+            h, _ = self.attention(x, x, x)
             return h
 
     class GeeseControll(nn.Module):
@@ -103,12 +103,9 @@ class GeeseNetIMO(BaseModel):
             self.fc_control = Dense(filters * 3, final_filters, bnunits=final_filters)
 
         def forward(self, x, e):
-            x_controled = x.sum(dim=1, keepdim=True)
-            e_controled = e.sum(dim=1, keepdim=True)
+            h, _ = self.attention(x, x, x)
 
-            h, _ = self.attention(x_controled, x, x)
-
-            h = torch.cat([x_controled, e_controled, h], dim=2).view(x.size(0), -1)
+            h = torch.cat([x, e, h], dim=2).view(x.size(1), -1)
             h = self.fc_control(h)
             return h
 
@@ -140,7 +137,7 @@ class GeeseNetIMO(BaseModel):
         e = self.encoder(x)
         h = e
         for block in self.blocks:
-            h = block(h, None, None)
+            h = block(h)
         h = self.control(h, e)
         p, v = self.head(h)
         return {"policy": p, "value": v}
