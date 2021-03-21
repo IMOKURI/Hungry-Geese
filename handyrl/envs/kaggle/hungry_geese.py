@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from kaggle_environments import make
 
 from ...environment import BaseEnvironment
-from ...model import BaseModel
+from ...model import BaseModel, Dense
 
 
 class TorusConv2d(nn.Module):
@@ -68,6 +68,78 @@ class GeeseNet(BaseModel):
         h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
+        return {"policy": p, "value": v}
+
+
+class GeeseNetIMO(BaseModel):
+
+    class GeeseEncoder(nn.Module):
+        def __init__(self, input_, filters):
+            super().__init__()
+            f = filters // 2
+            self.conv0 = TorusConv2d(input_, f, (3, 3), True)
+
+        def forward(self, x):
+            h = F.relu_(self.conv0(x))
+            h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+            h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
+            h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
+            return h
+
+    class GeeseBlock(nn.Module):
+        def __init__(self, embed_dim, num_heads):
+            super().__init__()
+            self.attention = nn.MultiheadAttention(embed_dim, num_heads)
+
+        def forward(self, x):
+            h, _ = self.attention(x, x, x)
+            return h
+
+    class GeeseControll(nn.Module):
+        def __init__(self, filters, final_filters):
+            super().__init__()
+            self.filters = filters
+            self.attention = nn.MultiheadAttention(filters, 1)
+            self.fc_control = Dense(filters * 3, final_filters, bnunits=final_filters)
+
+        def forward(self, x, e):
+            h, _ = self.attention(x, x, x)
+
+            h = torch.cat([x, e, h], dim=2).view(x.size(1), -1)
+            h = self.fc_control(h)
+            return h
+
+    class GeeseHead(nn.Module):
+        def __init__(self, filters):
+            super().__init__()
+            self.head_p = nn.Linear(filters, 4, bias=False)
+            self.head_v = nn.Linear(filters, 1, bias=True)
+
+        def forward(self, x):
+            p = self.head_p(x)
+            v = self.head_v(x)
+            return p, v
+
+
+    def __init__(self, env, args={}):
+        super().__init__(env, args)
+        blocks = 5
+        filters = 64
+        final_filters = 128
+        input_= env.observation().shape[0]
+
+        self.encoder = self.GeeseEncoder(input_, filters)
+        self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
+        self.control = self.GeeseControll(filters, final_filters)
+        self.head = self.GeeseHead(final_filters)
+
+    def forward(self, x, _=None):
+        e = self.encoder(x)
+        h = e
+        for block in self.blocks:
+            h = block(h)
+        h = self.control(h, e)
+        p, v = self.head(h)
         return {"policy": p, "value": v}
 
 
@@ -234,7 +306,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return GeeseNetIMO
 
     def observation(self, player=None):
         if player is None:
