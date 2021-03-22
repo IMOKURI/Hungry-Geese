@@ -72,7 +72,6 @@ class GeeseNet(BaseModel):
 
 
 class GeeseNetIMO(BaseModel):
-
     class GeeseEncoder(nn.Module):
         def __init__(self, input_, filters):
             super().__init__()
@@ -112,12 +111,17 @@ class GeeseNetIMO(BaseModel):
     class GeeseHead(nn.Module):
         def __init__(self, filters):
             super().__init__()
-            self.head_p = nn.Linear(filters, 4, bias=False)
-            self.head_v = nn.Linear(filters, 1, bias=True)
+            f = filters // 2
+            self.head_p_1 = nn.Linear(filters, f, bias=False)
+            self.head_p_2 = nn.Linear(f, 4, bias=False)
+            self.head_v_1 = nn.Linear(filters, f, bias=True)
+            self.head_v_2 = nn.Linear(f, 1, bias=True)
 
         def forward(self, x):
-            p = self.head_p(x)
-            v = self.head_v(x)
+            p = self.head_p_1(x)
+            p = self.head_p_2(p)
+            v = self.head_v_1(x)
+            v = self.head_v_2(v)
             return p, v
 
 
