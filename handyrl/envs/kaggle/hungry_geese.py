@@ -72,18 +72,18 @@ class GeeseNet(BaseModel):
 
 
 class GeeseNetIMO(BaseModel):
-    class GeeseEncoder(nn.Module):
-        def __init__(self, input_, filters):
-            super().__init__()
-            f = filters // 2
-            self.conv0 = TorusConv2d(input_, f, (3, 3), True)
+    # class GeeseEncoder(nn.Module):
+    #     def __init__(self, input_, filters):
+    #         super().__init__()
+    #         f = filters // 2
+    #         self.conv0 = TorusConv2d(input_, f, (3, 3), True)
 
-        def forward(self, x):
-            h = F.relu_(self.conv0(x))
-            h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-            h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-            h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
-            return h
+    #     def forward(self, x):
+    #         h = F.relu_(self.conv0(x))
+    #         h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+    #         h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
+    #         h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
+    #         return h
 
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
@@ -134,7 +134,7 @@ class GeeseNetIMO(BaseModel):
 
         self.geese_net = GeeseNet(env, args)
 
-        self.encoder = self.GeeseEncoder(input_, filters)
+        # self.encoder = self.GeeseEncoder(input_, filters)
         self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
         self.control = self.GeeseControll(filters, final_filters)
         self.head = self.GeeseHead(final_filters)
