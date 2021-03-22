@@ -429,8 +429,16 @@ class Learner:
         train_model = self.model_class(self.env, args)
 
         self.model = train_model
-        if self.model_era != 0:
+        if self.model_era == 0:
+            # Load weight pretrained GeeseNet weights as Encoder.
+            model_path = "ds/models/second_stage_3257.pth"
+            self.model.geese_net.load_state_dict(torch.load(model_path), strict=False)
+        else:
             self.model.load_state_dict(torch.load(self.model_path(self.model_era)), strict=False)
+
+        # Disable trainable for pretrained weights.
+        for param in self.model.geese_net.parameters():
+            param.requires_grad = False
 
         # generated datum
         self.generation_results = {}
