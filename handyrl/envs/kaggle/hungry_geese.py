@@ -57,18 +57,18 @@ class GeeseNet(BaseModel):
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(h + self.conv_p(h))
+        h_p = F.relu_(self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         p = self.head_p(h_head_p)
 
-        h_v = F.relu_(h + self.conv_v(h))
+        h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
         h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
-        return {"policy": p, "value": v}
+        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
 
 
 class GeeseNetIMO(BaseModel):
@@ -132,13 +132,17 @@ class GeeseNetIMO(BaseModel):
         final_filters = 128
         input_= env.observation().shape[0]
 
+        self.geese_net = GeeseNet(env, args)
+
         self.encoder = self.GeeseEncoder(input_, filters)
         self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
         self.control = self.GeeseControll(filters, final_filters)
         self.head = self.GeeseHead(final_filters)
 
     def forward(self, x, _=None):
-        e = self.encoder(x)
+        # e = self.encoder(x)
+        x_ = self.geese_net(x)
+        e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
         h = e
         for block in self.blocks:
             h = block(h)
