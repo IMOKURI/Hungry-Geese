@@ -11,21 +11,21 @@ env_args:
 train_args:
     turn_based_training: False
     observation: False
-    gamma: 0.9
+    gamma: 0.8
     forward_steps: 32
     compress_steps: 4
     entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.3
-    update_episodes: 1000
-    batch_size: 1500
+    update_episodes: 500
+    batch_size: 1000
     minimum_episodes: 10000
     maximum_episodes: 500000
     num_batchers: 14
     eval_rate: 0.1
     worker:
         num_parallel: 6
-    lambda: 0.8
-    policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
+    lambda: 0.7
+    policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
     restart_epoch: 0
