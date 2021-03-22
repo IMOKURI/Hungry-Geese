@@ -130,7 +130,7 @@ class GeeseNetIMO(BaseModel):
         blocks = 5
         filters = 64
         final_filters = 128
-        input_= env.observation().shape[0]
+        # input_ = env.observation().shape[0]
 
         self.geese_net = GeeseNet(env, args)
 
