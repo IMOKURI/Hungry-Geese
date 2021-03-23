@@ -17,7 +17,7 @@ train_args:
     entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.3
     update_episodes: 500
-    batch_size: 1000
+    batch_size: 500
     minimum_episodes: 10000
     maximum_episodes: 500000
     num_batchers: 14

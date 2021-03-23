@@ -439,6 +439,10 @@ class Learner:
         # Disable trainable for pretrained weights.
         for param in self.model.geese_net.parameters():
             param.requires_grad = False
+        for param in self.model.geese_net.conv_p.parameters():
+            param.requires_grad = True
+        for param in self.model.geese_net.conv_v.parameters():
+            param.requires_grad = True
 
         # generated datum
         self.generation_results = {}
