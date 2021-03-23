@@ -20,6 +20,7 @@ from kaggle_environments import make
 
 from ...environment import BaseEnvironment
 from ...model import BaseModel, Dense
+from .models.gtrxl_torch import GTrXL
 
 
 class TorusConv2d(nn.Module):
@@ -121,7 +122,7 @@ class GeeseNetIMO(BaseModel):
             p = self.head_p_1(x)
             p = self.head_p_2(p)
             v = self.head_v_1(x)
-            v = self.head_v_2(v)
+            v = torch.tanh(self.head_v_2(v))
             return p, v
 
 
@@ -135,7 +136,7 @@ class GeeseNetIMO(BaseModel):
         self.geese_net = GeeseNet(env, args)
 
         # self.encoder = self.GeeseEncoder(input_, filters)
-        self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
+        self.blocks = nn.ModuleList([self.GeeseBlock(filters, 4) for _ in range(blocks)])
         self.control = self.GeeseControll(filters, final_filters)
         self.head = self.GeeseHead(final_filters)
 
@@ -148,6 +149,43 @@ class GeeseNetIMO(BaseModel):
             h = block(h)
         h = self.control(h, e)
         p, v = self.head(h)
+        return {"policy": p, "value": v}
+
+
+class GeeseNetGTrXL(BaseModel):
+    class GeeseHead(nn.Module):
+        def __init__(self, filters):
+            super().__init__()
+            f = filters // 2
+            self.head_p_1 = nn.Linear(filters, f, bias=False)
+            self.head_p_2 = nn.Linear(f, 4, bias=False)
+            self.head_v_1 = nn.Linear(filters, f, bias=True)
+            self.head_v_2 = nn.Linear(f, 1, bias=True)
+
+        def forward(self, x):
+            p = self.head_p_1(x)
+            p = self.head_p_2(p)
+            v = self.head_v_1(x)
+            v = torch.tanh(self.head_v_2(v))
+            return p, v
+
+
+    def __init__(self, env, args={}):
+        super().__init__(env, args)
+        d_model = 96
+        n_heads = 4
+        t_layers = 1
+
+        self.geese_net = GeeseNet(env, args)
+        self.gtrxl = GTrXL(d_model, n_heads, t_layers)
+
+        self.head = self.GeeseHead(d_model)
+
+    def forward(self, x, _=None):
+        x_ = self.geese_net(x)
+        e = torch.cat([x_["h_head_p"], x_["h_head_v"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+        out = self.gtrxl(e).view(x.size()[0], -1)
+        p, v = self.head(out)
         return {"policy": p, "value": v}
 
 
@@ -266,19 +304,19 @@ class Environment(BaseEnvironment):
 
     def outcome(self):
         # return terminal outcomes
-        # 1st: 1.0 2nd: 0.0 3rd: -0.5 4th: -1.0
+        # 1st: 1.0 2nd: 0.33 3rd: -0.33 4th: -1.0
         rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
             for pp, rr in rewards.items():
                 if p != pp:
                     if r > rr:
-                        outcomes[p] += 1 / (self.NUM_AGENTS - 1) / 2
+                        outcomes[p] += 1 / (self.NUM_AGENTS - 1)
                     elif r < rr:
                         outcomes[p] -= 1 / (self.NUM_AGENTS - 1)
-        for p, o in outcomes.items():
-            if o == 0.5:
-                outcomes[p] = 1.0
+        # for p, o in outcomes.items():
+        #     if o == 0.5:
+        #         outcomes[p] = 1.0
 
         return outcomes
 
@@ -318,7 +356,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetIMO
+        return GeeseNetGTrXL
 
     def observation(self, player=None):
         if player is None:
