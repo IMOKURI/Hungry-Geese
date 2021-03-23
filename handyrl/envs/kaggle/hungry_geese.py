@@ -136,7 +136,7 @@ class GeeseNetIMO(BaseModel):
         self.geese_net = GeeseNet(env, args)
 
         # self.encoder = self.GeeseEncoder(input_, filters)
-        self.blocks = nn.ModuleList([self.GeeseBlock(filters, 4) for _ in range(blocks)])
+        self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
         self.control = self.GeeseControll(filters, final_filters)
         self.head = self.GeeseHead(final_filters)
 
@@ -173,7 +173,7 @@ class GeeseNetGTrXL(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         d_model = 96
-        n_heads = 4
+        n_heads = 8
         t_layers = 1
 
         self.geese_net = GeeseNet(env, args)
