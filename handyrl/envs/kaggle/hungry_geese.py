@@ -266,19 +266,19 @@ class Environment(BaseEnvironment):
 
     def outcome(self):
         # return terminal outcomes
-        # 1st: 1.0 2nd: 0.33 3rd: -0.33 4th: -1.0
+        # 1st: 1.0 2nd: 0.0 3rd: -0.5 4th: -1.0
         rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
             for pp, rr in rewards.items():
                 if p != pp:
                     if r > rr:
-                        outcomes[p] += 1 / (self.NUM_AGENTS - 1)
+                        outcomes[p] += 1 / (self.NUM_AGENTS - 1) / 2
                     elif r < rr:
                         outcomes[p] -= 1 / (self.NUM_AGENTS - 1)
-        # for p, o in outcomes.items():
-        #     if o == 0.5:
-        #         outcomes[p] = 1.0
+        for p, o in outcomes.items():
+            if o == 0.5:
+                outcomes[p] = 1.0
 
         return outcomes
 
