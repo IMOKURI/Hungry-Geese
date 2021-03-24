@@ -140,7 +140,8 @@ class GeeseNetIMO(BaseModel):
     def forward(self, x, _=None):
         # x = (bs, pos)
 
-        head = x.apply_(lambda k: k if k == 1 else 0).view(x.size()[0], x.size()[1], 1).permute(1, 0, 2)
+        is_head = x == 1
+        head = (x * is_head).view(x.size()[0], x.size()[1], 1).permute(1, 0, 2)
         # head = (pos, bs, 1)
 
         e = self.encoder(x).permute(1, 0, 2)  # e = (pos, bs, dim)
