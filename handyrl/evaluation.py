@@ -427,7 +427,7 @@ def eval_main(args, argv):
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
         agent1,
-        RuleBasedAgentSmartGeeseV40(),
+        RuleBasedAgentEnsembleGeeseV2(),
         RuleBasedAgentEnsembleGeeseV3(),
         RuleBasedAgentEnsembleGeeseV5(),
     ]
