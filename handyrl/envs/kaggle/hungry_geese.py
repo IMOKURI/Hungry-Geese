@@ -73,18 +73,18 @@ class GeeseNet(BaseModel):
 
 
 class GeeseNetIMO(BaseModel):
-    # class GeeseEncoder(nn.Module):
-    #     def __init__(self, input_, filters):
-    #         super().__init__()
-    #         f = filters // 2
-    #         self.conv0 = TorusConv2d(input_, f, (3, 3), True)
+    class GeeseEncoder(nn.Module):
+        def __init__(self, input_, filters):
+            super().__init__()
+            f = filters // 2
+            self.conv0 = TorusConv2d(input_, f, (3, 3), True)
 
-    #     def forward(self, x):
-    #         h = F.relu_(self.conv0(x))
-    #         h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-    #         h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-    #         h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
-    #         return h
+        def forward(self, x):
+            h = F.relu_(self.conv0(x))
+            h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+            h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
+            h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
+            return h
 
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
@@ -105,7 +105,7 @@ class GeeseNetIMO(BaseModel):
         def forward(self, x, e):
             h, _ = self.attention(x, x, x)
 
-            h = torch.cat([x, e, h], dim=2).view(x.size(1), -1)
+            h = torch.cat([e, x, h], dim=2).view(x.size(1), -1)
             h = self.fc_control(h)
             return h
 
@@ -125,25 +125,25 @@ class GeeseNetIMO(BaseModel):
             v = torch.tanh(self.head_v_2(v))
             return p, v
 
-
     def __init__(self, env, args={}):
         super().__init__(env, args)
         blocks = 5
         filters = 64
         final_filters = 128
-        # input_ = env.observation().shape[0]
 
-        self.geese_net = GeeseNet(env, args)
+        input_ = env.observation().shape[0]
+        self.encoder = self.GeeseEncoder(input_, filters)
+        # self.geese_net = GeeseNet(env, args)
 
-        # self.encoder = self.GeeseEncoder(input_, filters)
         self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
         self.control = self.GeeseControll(filters, final_filters)
         self.head = self.GeeseHead(final_filters)
 
     def forward(self, x, _=None):
-        # e = self.encoder(x)
-        x_ = self.geese_net(x)
-        e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+        e = self.encoder(x)
+        # x_ = self.geese_net(x)
+        # e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+
         h = e
         for block in self.blocks:
             h = block(h)
