@@ -62,6 +62,21 @@ class RuleBasedAgentSmartGeeseV40(RandomAgent):
         return env.rule_based_action_smart_geese(player, "smart_goose_v40")
 
 
+class RuleBasedAgentEnsembleGeeseV2(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "ensemble_goose_v2")
+
+
+class RuleBasedAgentEnsembleGeeseV3(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "ensemble_goose_v3")
+
+
+class RuleBasedAgentEnsembleGeeseV5(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player, "ensemble_goose_v5")
+
+
 def view(env, player=None):
     if hasattr(env, 'view'):
         env.view(player=player)
@@ -254,7 +269,7 @@ class Evaluator:
         self.env = env
         self.args = args
         # self.default_agent = RandomAgent()  # RuleBasedAgent, trained agent, etc.
-        self.default_agent = RuleBasedAgentSmartGeeseV40()  # RuleBasedAgent, trained agent, etc.
+        self.default_agent = RuleBasedAgentEnsembleGeeseV5()  # RuleBasedAgent, trained agent, etc.
 
     def execute(self, models, args):
         agents = {}
@@ -413,8 +428,8 @@ def eval_main(args, argv):
     agents = [
         agent1,
         RuleBasedAgentSmartGeeseV40(),
-        RuleBasedAgentSmartGeeseV40(),
-        RuleBasedAgentSmartGeeseV40(),
+        RuleBasedAgentEnsembleGeeseV3(),
+        RuleBasedAgentEnsembleGeeseV5(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
