@@ -76,8 +76,8 @@ class GeeseNetIMO(BaseModel):
     class GeeseEncoder(nn.Module):
         def __init__(self, embed_dim):
             super().__init__()
-            input_ = 18
-            self.embed = nn.Embedding(input_, embed_dim, padding_idx=0)
+            input_ = 18 ** 7 - 1
+            self.embed = nn.Embedding(input_, embed_dim)
 
         def forward(self, x):
             x = self.embed(x)
@@ -99,13 +99,8 @@ class GeeseNetIMO(BaseModel):
             self.attention = nn.MultiheadAttention(dim, 1)
             self.fc_control = Dense(dim * 3, filters, bnunits=filters)
 
-        def forward(self, x, e, head):
-            x_head = (x * head).sum(dim=0, keepdim=True)
-            e_head = (e * head).sum(dim=0, keepdim=True)
-
-            h, _ = self.attention(x_head, x_head, x_head)
-
-            h = torch.cat([x_head, e_head, h], dim=2).view(x.size(1), -1)
+        def forward(self, x, e):
+            h = torch.cat([x, e], dim=2).view(x.size(1), -1)
             h = self.fc_control(h)
             return h
 
@@ -140,66 +135,58 @@ class GeeseNetIMO(BaseModel):
     def forward(self, x, _=None):
         # x = (bs, pos)
 
-        is_head = x == 1
-        head = (x * is_head).view(x.size()[0], x.size()[1], 1).permute(1, 0, 2)
-        # head = (pos, bs, 1)
-
         e = self.encoder(x).permute(1, 0, 2)  # e = (pos, bs, dim)
 
         h = e
         for block in self.blocks:
             h = block(h)
 
-        h = self.control(h, e, head)
+        h = self.control(h, e)
         p, v = self.head(h)
         return {"policy": p, "value": v}
 
 
 class GeeseNetGTrXL(BaseModel):
-    class GeeseHead(nn.Module):
-        def __init__(self, filters):
-            super().__init__()
-            f = filters // 2
-            self.head_p_1 = nn.Linear(filters, f, bias=False)
-            self.head_p_2 = nn.Linear(f, 4, bias=False)
-            self.head_v_1 = nn.Linear(filters, f, bias=True)
-            self.head_v_2 = nn.Linear(f, 1, bias=True)
-
-        def forward(self, x):
-            p = self.head_p_1(x)
-            p = self.head_p_2(p)
-            v = self.head_v_1(x)
-            v = torch.tanh(self.head_v_2(v))
-            return p, v
-
-
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        d_model = 96
-        n_heads = 8
-        t_layers = 1
+        d_model = 36
+        n_heads = 4
+        t_layers = 5
+        h_dim = 64
+        n_layers = 1
 
-        self.geese_net = GeeseNet(env, args)
-        self.gtrxl = GTrXL(d_model, n_heads, t_layers)
-
-        self.head = self.GeeseHead(d_model)
+        self.gtrxl = GTrXL(d_model, n_heads, t_layers, h_dim, n_layers)
 
     def forward(self, x, _=None):
-        x_ = self.geese_net(x)
-        e = torch.cat([x_["h_head_p"], x_["h_head_v"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
-        out = self.gtrxl(e).view(x.size()[0], -1)
-        p, v = self.head(out)
+        out = self.gtrxl(x.permute(1, 0, 2))
+        out = out.permute(1, 0, 2)  # (bs, patch=4, dim)
+
+        d = out.sum(dim=2)  # (bs, patch)
+        # 0: upper left, 1: upper right, 2: bottom left, 3: bottom right
+        # N = [0, 1], S = [2, 3], W = [0, 2], E = [1, 3]
+        d1 = d + torch.roll(d, 1)  # N: 1, S: 3
+        d2 = d + torch.roll(d, 2)  # W: 2, E: 3
+
+        p = torch.cat((d1[:, [1, 3]], d2[:, [2, 3]]), axis=1)
+        v = torch.tanh(d.mean(dim=1))
+
         return {"policy": p, "value": v}
 
 
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
+    NUM_ROW = 7
+    NUM_COL = 11
+    CENTER_ROW = NUM_ROW // 2
+    CENTER_COL = NUM_COL // 2
+
 
     def __init__(self, args={}):
         super().__init__()
         self.env = make("hungry_geese")
         self.reset()
+        self.offset = [18 ** i for i in range(7)]
 
     def reset(self, args={}):
         obs = self.env.reset(num_agents=self.NUM_AGENTS)
@@ -359,38 +346,73 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetIMO
+        return GeeseNetGTrXL
+
+    def to_offset(self, x):
+        row = self.CENTER_ROW - x // self.NUM_COL
+        col = self.CENTER_COL - x % self.NUM_COL
+        return row, col
+
+    def to_row(self, offset, x):
+        return (x // self.NUM_COL + offset) % self.NUM_ROW
+
+    def to_col(self, offset, x):
+        return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
         if player is None:
             player = 0
 
-        b = np.zeros((7 * 11), dtype=np.long)
+        b = np.ones((7, 11), dtype=np.long)
         obs = self.obs_list[-1][0]['observation']
+
+        player_goose_head = obs['geese'][player][0]
+        o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
             # whole position
             for pos in geese:
-                b[pos] = 9 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 11 + (p - player) % self.NUM_AGENTS
             # tip position
             for pos in geese[-1:]:
-                b[pos] = 5 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 7 + (p - player) % self.NUM_AGENTS
             # head position
             for pos in geese[:1]:
-                b[pos] = 1 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 3 + (p - player) % self.NUM_AGENTS
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 for pos in geese[:1]:
-                    b[pos] = 13 + (p - player) % self.NUM_AGENTS
+                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 15 + (p - player) % self.NUM_AGENTS
 
         # food
         for pos in obs['food']:
-            b[pos] = 17
+            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 2
 
-        return b
+        # to 11 x 11
+        b = np.pad(b, ((2, 2), (0, 0)))
+
+        # split into patches
+        patch_size = 36  # 6 * 6
+        num_patch = 4  # overray center row/col
+        c = np.zeros((num_patch, patch_size), dtype=np.long)
+        p_row = 6
+        p_col = 6
+        for i in range(num_patch):
+            c[i] = b[p_row-6:p_row, p_col-6:p_col].reshape(-1)
+            if (i + 1) % 2 == 0:
+                p_row += 5
+                p_col = 6
+                if p_row > 11:
+                    p_row = 6
+            else:
+                p_col += 5
+                if p_col > 11:
+                    p_col = 6
+
+        return c
 
 
 if __name__ == '__main__':
