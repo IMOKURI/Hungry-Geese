@@ -147,29 +147,39 @@ class GeeseNetIMO(BaseModel):
 
 
 class GeeseNetGTrXL(BaseModel):
+    class GeeseHead(nn.Module):
+        def __init__(self, filters):
+            super().__init__()
+            f = filters // 2
+            self.head_p_1 = nn.Linear(filters, f, bias=False)
+            self.head_p_2 = nn.Linear(f, 4, bias=False)
+            self.head_v_1 = nn.Linear(filters, f, bias=True)
+            self.head_v_2 = nn.Linear(f, 1, bias=True)
+
+        def forward(self, x):
+            p = self.head_p_1(x)
+            p = self.head_p_2(p)
+            v = self.head_v_1(x)
+            v = torch.tanh(self.head_v_2(v))
+            return p, v
+
     def __init__(self, env, args={}):
         super().__init__(env, args)
         d_model = 36
-        n_heads = 4
-        t_layers = 5
-        h_dim = 64
+        n_heads = 6
+        t_layers = 4
+        h_dim = 256
         n_layers = 1
 
         self.gtrxl = GTrXL(d_model, n_heads, t_layers, h_dim, n_layers)
+        self.head = self.GeeseHead(d_model * 4)
 
     def forward(self, x, _=None):
+        bs = x.size()[0]
         out = self.gtrxl(x.permute(1, 0, 2))
-        out = out.permute(1, 0, 2)  # (bs, patch=4, dim)
+        out = out.permute(1, 0, 2).view(bs, -1)  # (bs, patch=4, dim)
 
-        d = out.sum(dim=2)  # (bs, patch)
-        # 0: upper left, 1: upper right, 2: bottom left, 3: bottom right
-        # N = [0, 1], S = [2, 3], W = [0, 2], E = [1, 3]
-        d1 = d + torch.roll(d, 1)  # N: 1, S: 3
-        d2 = d + torch.roll(d, 2)  # W: 2, E: 3
-
-        p = torch.softmax(torch.cat((d1[:, [1, 3]], d2[:, [2, 3]]), axis=1), dim=1)
-        v = torch.tanh(d.mean(dim=1, keepdim=True))
-
+        p, v = self.head(out)
         return {"policy": p, "value": v}
 
 
