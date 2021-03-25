@@ -167,7 +167,7 @@ class GeeseNetGTrXL(BaseModel):
         d1 = d + torch.roll(d, 1)  # N: 1, S: 3
         d2 = d + torch.roll(d, 2)  # W: 2, E: 3
 
-        p = torch.cat((d1[:, [1, 3]], d2[:, [2, 3]]), axis=1)
+        p = torch.softmax(torch.cat((d1[:, [1, 3]], d2[:, [2, 3]]), axis=1), dim=1)
         v = torch.tanh(d.mean(dim=1, keepdim=True))
 
         return {"policy": p, "value": v}
