@@ -58,11 +58,11 @@ class GeeseNet(BaseModel):
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(self.conv_p(h))
+        h_p = F.relu_(h + self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         p = self.head_p(h_head_p)
 
-        h_v = F.relu_(self.conv_v(h))
+        h_v = F.relu_(h + self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
@@ -304,19 +304,19 @@ class Environment(BaseEnvironment):
 
     def outcome(self):
         # return terminal outcomes
-        # 1st: 1.0 2nd: 0.0 3rd: -0.5 4th: -1.0
+        # 1st: 1.0 2nd: 0.33 3rd: -0.33 4th: -1.0
         rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
             for pp, rr in rewards.items():
                 if p != pp:
                     if r > rr:
-                        outcomes[p] += 1 / (self.NUM_AGENTS - 1) / 2
+                        outcomes[p] += 1 / (self.NUM_AGENTS - 1)
                     elif r < rr:
                         outcomes[p] -= 1 / (self.NUM_AGENTS - 1)
-        for p, o in outcomes.items():
-            if o == 0.5:
-                outcomes[p] = 1.0
+        # for p, o in outcomes.items():
+        #     if o == 0.5:
+        #         outcomes[p] = 1.0
 
         return outcomes
 
