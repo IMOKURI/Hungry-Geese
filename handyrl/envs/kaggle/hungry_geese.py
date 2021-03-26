@@ -38,6 +38,18 @@ class TorusConv2d(nn.Module):
         return h
 
 
+class Conv2d(nn.Module):
+    def __init__(self, input_dim, output_dim, kernel_size, bn):
+        super().__init__()
+        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
+        self.bn = nn.BatchNorm2d(output_dim) if bn else None
+
+    def forward(self, x):
+        h = self.conv(x)
+        h = self.bn(h) if self.bn is not None else h
+        return h
+
+
 class GeeseNet(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
@@ -47,8 +59,8 @@ class GeeseNet(BaseModel):
         self.blocks0 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
         self.blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
 
-        self.conv_p = TorusConv2d(filters, filters, (1, 1), True)
-        self.conv_v = TorusConv2d(filters, filters, (1, 1), True)
+        self.conv_p = Conv2d(filters, filters, (1, 1), True)
+        self.conv_v = Conv2d(filters, filters, (1, 1), True)
 
         self.head_p = nn.Linear(filters, 4, bias=False)
         self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
