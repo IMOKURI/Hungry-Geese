@@ -42,12 +42,13 @@ class GeeseNet(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         input_shape = env.observation().shape
-        layers, filters = 12, 32
+        blocks, filters = 6, 32
         self.conv0 = TorusConv2d(input_shape[0], filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.blocks0 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
+        self.blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
 
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_p = TorusConv2d(filters, filters, (1, 1), True)
+        self.conv_v = TorusConv2d(filters, filters, (1, 1), True)
 
         self.head_p = nn.Linear(filters, 4, bias=False)
         self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
@@ -55,14 +56,15 @@ class GeeseNet(BaseModel):
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for block in self.blocks:
-            h = F.relu_(h + block(h))
+        for block0, block1 in zip(self.blocks0, self.blocks1):
+            h = F.relu_(block0(h))
+            h = F.relu_(block1(h) + h)
 
-        h_p = F.relu_(h + self.conv_p(h))
+        h_p = F.relu_(self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         p = self.head_p(h_head_p)
 
-        h_v = F.relu_(h + self.conv_v(h))
+        h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
@@ -356,7 +358,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetIMO
+        return GeeseNet
 
     def observation(self, player=None):
         if player is None:
