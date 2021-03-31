@@ -172,27 +172,26 @@ class GeeseNetGTrXL(BaseModel):
             self.head_v_2 = nn.Linear(f, 1, bias=True)
 
         def forward(self, x):
-            p = self.head_p_1(x)
+            p = F.relu_(self.head_p_1(x))
             p = self.head_p_2(p)
-            v = self.head_v_1(x)
+            v = F.relu_(self.head_v_1(x))
             v = torch.tanh(self.head_v_2(v))
             return p, v
 
 
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        d_model = 96
+        d_model = 64
         n_heads = 8
-        t_layers = 1
+        t_layers = 6
 
         self.geese_net = GeeseNet(env, args)
         self.gtrxl = GTrXL(d_model, n_heads, t_layers)
-
         self.head = self.GeeseHead(d_model)
 
     def forward(self, x, _=None):
         x_ = self.geese_net(x)
-        e = torch.cat([x_["h_head_p"], x_["h_head_v"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+        e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
         out = self.gtrxl(e).view(x.size()[0], -1)
         p, v = self.head(out)
         return {"policy": p, "value": v}
