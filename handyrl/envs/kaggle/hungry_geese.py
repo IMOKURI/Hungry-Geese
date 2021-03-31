@@ -111,13 +111,10 @@ class GeeseNetIMO(BaseModel):
         def __init__(self, filters, final_filters):
             super().__init__()
             self.filters = filters
-            self.attention = nn.MultiheadAttention(filters, 1)
-            self.fc_control = Dense(filters * 3, final_filters, bnunits=final_filters)
+            self.fc_control = Dense(filters * 2, final_filters, bnunits=final_filters)
 
         def forward(self, x, e):
-            h, _ = self.attention(x, x, x)
-
-            h = torch.cat([x, e, h], dim=2).view(x.size(1), -1)
+            h = torch.cat([x, e], dim=2).view(x.size(1), -1)
             h = self.fc_control(h)
             return h
 
@@ -131,15 +128,15 @@ class GeeseNetIMO(BaseModel):
             self.head_v_2 = nn.Linear(f, 1, bias=True)
 
         def forward(self, x):
-            p = self.head_p_1(x)
+            p = F.relu_(self.head_p_1(x))
             p = self.head_p_2(p)
-            v = self.head_v_1(x)
+            v = F.relu_(self.head_v_1(x))
             v = torch.tanh(self.head_v_2(v))
             return p, v
 
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        blocks = 5
+        blocks = 6
         filters = 64
         final_filters = 128
 
@@ -158,7 +155,7 @@ class GeeseNetIMO(BaseModel):
 
         h = e
         for block in self.blocks:
-            h = block(h)
+            h = h + block(h)
         h = self.control(h, e)
         p, v = self.head(h)
         return {"policy": p, "value": v}
