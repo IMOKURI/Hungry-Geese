@@ -86,17 +86,13 @@ class GeeseNet(BaseModel):
 
 class GeeseNetIMO(BaseModel):
     class GeeseEncoder(nn.Module):
-        def __init__(self, input_, filters):
+        def __init__(self):
             super().__init__()
-            f = filters // 2
-            self.conv0 = TorusConv2d(input_, f, (3, 3), True)
+            self.embed = nn.Embedding(20, 1)
 
         def forward(self, x):
-            h = F.relu_(self.conv0(x))
-            h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-            h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-            h = torch.cat([h_head, h_avg], 1).view(1, x.size()[0], -1)
-            return h
+            x = self.embed(x).view(1, x.size()[0], -1)
+            return x
 
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
@@ -108,10 +104,10 @@ class GeeseNetIMO(BaseModel):
             return h
 
     class GeeseControll(nn.Module):
-        def __init__(self, filters, final_filters):
+        def __init__(self, filters):
             super().__init__()
             self.filters = filters
-            self.fc_control = Dense(filters * 2, final_filters, bnunits=final_filters)
+            self.fc_control = Dense(filters * 2, filters, bnunits=filters)
 
         def forward(self, x, e):
             h = torch.cat([x, e], dim=2).view(x.size(1), -1)
@@ -122,8 +118,8 @@ class GeeseNetIMO(BaseModel):
         def __init__(self, filters):
             super().__init__()
             f = filters // 2
-            self.head_p_1 = nn.Linear(filters, f, bias=False)
-            self.head_p_2 = nn.Linear(f, 4, bias=False)
+            self.head_p_1 = nn.Linear(filters, f, bias=True)
+            self.head_p_2 = nn.Linear(f, 4, bias=True)
             self.head_v_1 = nn.Linear(filters, f, bias=True)
             self.head_v_2 = nn.Linear(f, 1, bias=True)
 
@@ -137,21 +133,19 @@ class GeeseNetIMO(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         blocks = 6
-        filters = 64
-        final_filters = 128
+        filters = 80
 
-        # input_ = env.observation().shape[0]
-        # self.encoder = self.GeeseEncoder(input_, filters)
-        self.geese_net = GeeseNet(env, args)
+        self.encoder = self.GeeseEncoder()
+        # self.geese_net = GeeseNet(env, args)
 
         self.blocks = nn.ModuleList([self.GeeseBlock(filters, 8) for _ in range(blocks)])
-        self.control = self.GeeseControll(filters, final_filters)
-        self.head = self.GeeseHead(final_filters)
+        self.control = self.GeeseControll(filters)
+        self.head = self.GeeseHead(filters)
 
     def forward(self, x, _=None):
-        # e = self.encoder(x)
-        x_ = self.geese_net(x)
-        e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+        e = self.encoder(x)
+        # x_ = self.geese_net(x)
+        # e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
 
         h = e
         for block in self.blocks:
@@ -385,33 +379,36 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
+        b = np.ones((self.NUM_ROW, self.NUM_COL), dtype=np.long)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
         o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
-            # head position
-            for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
-            # tip position
-            for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
             # whole position
             for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 10 + (p - player) % self.NUM_AGENTS
+            # tip position
+            for pos in geese[-1:]:
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 6 + (p - player) % self.NUM_AGENTS
+            # head position
+            for pos in geese[:1]:
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 2 + (p - player) % self.NUM_AGENTS
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 14 + (p - player) % self.NUM_AGENTS
 
         # food
         for pos in obs['food']:
-            b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 18
+
+        # padding
+        b = np.pad(b.reshape(-1), (0, 3))
 
         return b
 
