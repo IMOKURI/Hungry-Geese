@@ -88,7 +88,7 @@ class GeeseNetIMO(BaseModel):
     class GeeseEncoder(nn.Module):
         def __init__(self):
             super().__init__()
-            self.embed = nn.Embedding(20, 2)
+            self.embed = nn.Embedding(20, 3)
 
         def forward(self, x):
             x = self.embed(x).view(1, x.size()[0], -1)
@@ -133,7 +133,7 @@ class GeeseNetIMO(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         blocks = 6
-        filters = 160
+        filters = 240
 
         self.encoder = self.GeeseEncoder()
         # self.geese_net = GeeseNet(env, args)
