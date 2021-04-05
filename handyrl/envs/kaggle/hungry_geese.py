@@ -159,7 +159,7 @@ class GeeseNetGTrXL(BaseModel):
     class GeeseEncoder(nn.Module):
         def __init__(self):
             super().__init__()
-            self.embed = nn.Embedding(20, 3)
+            self.embed = nn.Embedding(18, 8)
 
         def forward(self, x):
             x = self.embed(x).view(1, x.size()[0], -1)
@@ -181,12 +181,11 @@ class GeeseNetGTrXL(BaseModel):
             v = torch.tanh(self.head_v_2(v))
             return p, v
 
-
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        d_model = 240
+        d_model = 616
         n_heads = 8
-        t_layers = 6
+        t_layers = 1
 
         self.encoder = self.GeeseEncoder()
         # self.geese_net = GeeseNet(env, args)
@@ -392,7 +391,7 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.ones((self.NUM_ROW, self.NUM_COL), dtype=np.long)
+        b = np.zeros((self.NUM_ROW, self.NUM_COL), dtype=np.long)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
@@ -401,27 +400,27 @@ class Environment(BaseEnvironment):
         for p, geese in enumerate(obs['geese']):
             # whole position
             for pos in geese:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 10 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 9 + (p - player) % self.NUM_AGENTS
             # tip position
             for pos in geese[-1:]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 6 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 5 + (p - player) % self.NUM_AGENTS
             # head position
             for pos in geese[:1]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 2 + (p - player) % self.NUM_AGENTS
+                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1 + (p - player) % self.NUM_AGENTS
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 for pos in geese[:1]:
-                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 14 + (p - player) % self.NUM_AGENTS
+                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 13 + (p - player) % self.NUM_AGENTS
 
         # food
         for pos in obs['food']:
-            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 18
+            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 17
 
         # padding
-        b = np.pad(b.reshape(-1), (0, 3))
+        # b = np.pad(b.reshape(-1), (0, 3))
 
         return b
 
