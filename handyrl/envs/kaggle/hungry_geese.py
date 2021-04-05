@@ -156,6 +156,15 @@ class GeeseNetIMO(BaseModel):
 
 
 class GeeseNetGTrXL(BaseModel):
+    class GeeseEncoder(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(20, 3)
+
+        def forward(self, x):
+            x = self.embed(x).view(1, x.size()[0], -1)
+            return x
+
     class GeeseHead(nn.Module):
         def __init__(self, filters):
             super().__init__()
@@ -175,17 +184,21 @@ class GeeseNetGTrXL(BaseModel):
 
     def __init__(self, env, args={}):
         super().__init__(env, args)
-        d_model = 64
+        d_model = 240
         n_heads = 8
         t_layers = 6
 
-        self.geese_net = GeeseNet(env, args)
+        self.encoder = self.GeeseEncoder()
+        # self.geese_net = GeeseNet(env, args)
+
         self.gtrxl = GTrXL(d_model, n_heads, t_layers)
         self.head = self.GeeseHead(d_model)
 
     def forward(self, x, _=None):
-        x_ = self.geese_net(x)
-        e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+        e = self.encoder(x)
+        # x_ = self.geese_net(x)
+        # e = torch.cat([x_["h_head_p"], x_["h_avg_v"]], 1).view(1, x.size()[0], -1)
+
         out = self.gtrxl(e).view(x.size()[0], -1)
         p, v = self.head(out)
         return {"policy": p, "value": v}
@@ -362,7 +375,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetIMO
+        return GeeseNetGTrXL
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
