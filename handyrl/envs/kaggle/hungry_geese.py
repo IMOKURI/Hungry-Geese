@@ -6,6 +6,7 @@
 
 # wrapper of Hungry Geese environment from kaggle
 
+import math
 import random
 import itertools
 import importlib
@@ -159,10 +160,12 @@ class GeeseNetGTrXL(BaseModel):
     class GeeseEncoder(nn.Module):
         def __init__(self):
             super().__init__()
-            self.embed = nn.Embedding(18, 8)
+            self.d_model = 8
+            self.embed = nn.Embedding(18, self.d_model)
 
         def forward(self, x):
-            x = self.embed(x).view(1, x.size()[0], -1)
+            x = self.embed(x) * math.sqrt(self.d_model)
+            x = x.view(1, x.size()[0], -1)
             return x
 
     class GeeseHead(nn.Module):
@@ -185,7 +188,7 @@ class GeeseNetGTrXL(BaseModel):
         super().__init__(env, args)
         d_model = 616
         n_heads = 8
-        t_layers = 1
+        t_layers = 2
 
         self.encoder = self.GeeseEncoder()
         # self.geese_net = GeeseNet(env, args)
