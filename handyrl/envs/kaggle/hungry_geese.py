@@ -89,8 +89,8 @@ class GeeseNetZero(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         input_shape = env.observation().shape
-        blocks = 20  # 40
-        filters = 256
+        blocks = 10  # 40
+        filters = 64
         hidden_p = 2
         hidden_v = 1
 
@@ -103,8 +103,8 @@ class GeeseNetZero(BaseModel):
         self.head_p = nn.Linear(77 * hidden_p, 4, bias=False)
 
         self.conv_v = Conv2d(filters, hidden_v, (1, 1), True)
-        self.head_v1 = nn.Linear(77 * hidden_v, filters, bias=True)
-        self.head_v2 = nn.Linear(filters, 1, bias=True)
+        self.head_v1 = nn.Linear(77 * hidden_v, 77 // 2, bias=True)
+        self.head_v2 = nn.Linear(77 // 2, 1, bias=True)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
