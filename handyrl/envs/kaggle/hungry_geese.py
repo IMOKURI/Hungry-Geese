@@ -89,8 +89,8 @@ class GeeseNetZero(BaseModel):
     def __init__(self, env, args={}):
         super().__init__(env, args)
         input_shape = env.observation().shape
-        blocks = 10  # 40
-        filters = 64
+        blocks = 8  # 40
+        filters = 48
         hidden_p = 2
         hidden_v = 1
 
