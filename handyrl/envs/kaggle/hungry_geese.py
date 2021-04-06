@@ -59,7 +59,8 @@ class GeeseNet(BaseModel):
         self.conv0 = TorusConv2d(input_shape[0], filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
 
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_p1 = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_p2 = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
         self.head_p = nn.Linear(filters, 4, bias=False)
@@ -71,56 +72,18 @@ class GeeseNet(BaseModel):
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(self.conv_p(h))
+        h_p = F.relu_(self.conv_p1(h))
+        h_p = F.relu_(self.conv_p2(h_p))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         p = self.head_p(h_head_p)
 
         h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
-
         h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
-
-
-class GeeseNetZero(BaseModel):
-    def __init__(self, env, args={}):
-        super().__init__(env, args)
-        input_shape = env.observation().shape
-        blocks = 8  # 40
-        filters = 48
-        hidden_p = 2
-        hidden_v = 1
-
-        self.conv0 = TorusConv2d(input_shape[0], filters, (3, 3), True)
-
-        self.blocks0 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
-        self.blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
-
-        self.conv_p = Conv2d(filters, hidden_p, (1, 1), True)
-        self.head_p = nn.Linear(77 * hidden_p, 4, bias=False)
-
-        self.conv_v = Conv2d(filters, hidden_v, (1, 1), True)
-        self.head_v1 = nn.Linear(77 * hidden_v, 77 // 2, bias=True)
-        self.head_v2 = nn.Linear(77 // 2, 1, bias=True)
-
-    def forward(self, x, _=None):
-        h = F.relu_(self.conv0(x))
-
-        for block0, block1 in zip(self.blocks0, self.blocks1):
-            h = F.relu_(block0(h))
-            h = F.relu_(block1(h) + h)
-
-        h_p = F.relu_(self.conv_p(h)).view(h.size()[0], -1)
-        p = self.head_p(h_p)
-
-        h_v = F.relu_(self.conv_v(h)).view(h.size()[0], -1)
-        h_v = F.relu_(self.head_v1(h_v))
-        v = torch.tanh(self.head_v2(h_v))
-
-        return {"policy": p, "value": v}
 
 
 class GeeseNetIMO(BaseModel):
@@ -411,7 +374,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetZero
+        return GeeseNet
 
     def observation(self, player=None):
         if player is None:
