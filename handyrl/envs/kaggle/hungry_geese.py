@@ -85,6 +85,44 @@ class GeeseNet(BaseModel):
         return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
 
 
+class GeeseNetZero(BaseModel):
+    def __init__(self, env, args={}):
+        super().__init__(env, args)
+        input_shape = env.observation().shape
+        blocks = 20  # 40
+        filters = 256
+        hidden_p = 2
+        hidden_v = 1
+
+        self.conv0 = TorusConv2d(input_shape[0], filters, (3, 3), True)
+
+        self.blocks0 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
+        self.blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(blocks)])
+
+        self.conv_p = Conv2d(filters, hidden_p, (1, 1), True)
+        self.head_p = nn.Linear(77 * hidden_p, 4, bias=False)
+
+        self.conv_v = Conv2d(filters, hidden_v, (1, 1), True)
+        self.head_v1 = nn.Linear(77 * hidden_v, filters, bias=True)
+        self.head_v2 = nn.Linear(filters, 1, bias=True)
+
+    def forward(self, x, _=None):
+        h = F.relu_(self.conv0(x))
+
+        for block0, block1 in zip(self.blocks0, self.blocks1):
+            h = F.relu_(block0(h))
+            h = F.relu_(block1(h) + h)
+
+        h_p = F.relu_(self.conv_p(h)).view(h.size()[0], -1)
+        p = self.head_p(h_p)
+
+        h_v = F.relu_(self.conv_v(h)).view(h.size()[0], -1)
+        h_v = F.relu_(self.head_v1(h_v))
+        v = torch.tanh(self.head_v2(h_v))
+
+        return {"policy": p, "value": v}
+
+
 class GeeseNetIMO(BaseModel):
     class GeeseEncoder(nn.Module):
         def __init__(self):
@@ -209,10 +247,6 @@ class GeeseNetGTrXL(BaseModel):
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
-    NUM_ROW = 7
-    NUM_COL = 11
-    CENTER_ROW = NUM_ROW // 2
-    CENTER_COL = NUM_COL // 2
 
     def __init__(self, args={}):
         super().__init__()
@@ -377,55 +411,38 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetGTrXL
-
-    def to_offset(self, x):
-        row = self.CENTER_ROW - x // self.NUM_COL
-        col = self.CENTER_COL - x % self.NUM_COL
-        return row, col
-
-    def to_row(self, offset, x):
-        return (x // self.NUM_COL + offset) % self.NUM_ROW
-
-    def to_col(self, offset, x):
-        return (x + offset) % self.NUM_COL
+        return GeeseNetZero
 
     def observation(self, player=None):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_ROW, self.NUM_COL), dtype=np.long)
+        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
         obs = self.obs_list[-1][0]['observation']
 
-        player_goose_head = obs['geese'][player][0]
-        o_row, o_col = self.to_offset(player_goose_head)
-
         for p, geese in enumerate(obs['geese']):
-            # whole position
-            for pos in geese:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 9 + (p - player) % self.NUM_AGENTS
-            # tip position
-            for pos in geese[-1:]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 5 + (p - player) % self.NUM_AGENTS
             # head position
             for pos in geese[:1]:
-                b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1 + (p - player) % self.NUM_AGENTS
+                b[0 + (p - player) % self.NUM_AGENTS, pos] = 1
+            # tip position
+            for pos in geese[-1:]:
+                b[4 + (p - player) % self.NUM_AGENTS, pos] = 1
+            # whole position
+            for pos in geese:
+                b[8 + (p - player) % self.NUM_AGENTS, pos] = 1
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
                 for pos in geese[:1]:
-                    b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 13 + (p - player) % self.NUM_AGENTS
+                    b[12 + (p - player) % self.NUM_AGENTS, pos] = 1
 
         # food
         for pos in obs['food']:
-            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 17
+            b[16, pos] = 1
 
-        # padding
-        # b = np.pad(b.reshape(-1), (0, 3))
-
-        return b
+        return b.reshape(-1, 7, 11)
 
 
 if __name__ == '__main__':
