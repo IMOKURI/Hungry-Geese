@@ -19,7 +19,7 @@ train_args:
     update_episodes: 500
     batch_size: 400
     minimum_episodes: 10000
-    maximum_episodes: 500000
+    maximum_episodes: 800000
     num_batchers: 8
     eval_rate: 0.1
     worker:

@@ -63,9 +63,9 @@ class GeeseNet(BaseModel):
         self.conv_p2 = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_v2 = nn.Linear(filters, 1, bias=False)
+        self.head_p1 = nn.Linear(filters + 77, filters, bias=False)
+        self.head_p2 = nn.Linear(filters, 4, bias=False)
+        self.head_v = nn.Linear(77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
@@ -75,15 +75,15 @@ class GeeseNet(BaseModel):
         h_p = F.relu_(self.conv_p1(h))
         h_p = F.relu_(self.conv_p2(h_p))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        p = self.head_p(h_head_p)
+        h_avg_p = h_p.view(h_p.size(0), h_p.size(1), -1).mean(1)  # Global Average Pooling
+        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_avg_p], dim=1)))
+        p = self.head_p2(h_p)
 
         h_v = F.relu_(self.conv_v(h))
-        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
-        v = torch.tanh(self.head_v2(h_v))
+        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(1)  # Global Average Pooling
+        v = torch.tanh(self.head_v(h_avg_v))
 
-        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
+        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_avg_p": h_avg_p, "h_avg_v": h_avg_v}
 
 
 class GeeseNetIMO(BaseModel):
