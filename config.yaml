@@ -1,35 +1,35 @@
 
 env_args:
-    env: 'TicTacToe'
+    # env: 'TicTacToe'
     #env: 'Geister'
-    #env: 'HungryGeese'
+    env: 'HungryGeese'
     #env: 'handyrl.envs.parallel_tictactoe'  # specify by path
 
 train_args:
-    turn_based_training: True
+    turn_based_training: False
     observation: False
     gamma: 0.8
-    forward_steps: 16
+    forward_steps: 32
     compress_steps: 4
-    entropy_regularization: 1.0e-1
+    entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.1
-    update_episodes: 200
-    batch_size: 128
-    minimum_episodes: 400
-    maximum_episodes: 100000
+    update_episodes: 500
+    batch_size: 400
+    minimum_episodes: 10000
+    maximum_episodes: 800000
     epochs: -1
-    num_batchers: 2
+    num_batchers: 8
     eval_rate: 0.1
     worker:
         num_parallel: 6
     lambda: 0.7
     policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
-    seed: 0
+    seed: 440
     restart_epoch: 0
 
 
 worker_args:
-    server_address: ''
+    server_address: '127.0.0.1'
     num_parallel: 8
 
