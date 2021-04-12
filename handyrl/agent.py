@@ -30,6 +30,11 @@ class RuleBasedAgent(RandomAgent):
             return random.choice(env.legal_actions(player))
 
 
+class RuleBasedAgentSmartGeese(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_smart_geese(player)
+
+
 def view(env, player=None):
     if hasattr(env, 'view'):
         env.view(player=player)

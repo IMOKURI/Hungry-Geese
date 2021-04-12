@@ -9,7 +9,7 @@ import multiprocessing as mp
 
 from .environment import prepare_env, make_env
 from .connection import send_recv, accept_socket_connections, connect_socket_connection
-from .agent import RandomAgent, RuleBasedAgent, Agent, EnsembleAgent, SoftAgent
+from .agent import RandomAgent, RuleBasedAgent, Agent, EnsembleAgent, SoftAgent, RuleBasedAgentSmartGeese
 from .agent import view, view_transition
 
 
@@ -120,7 +120,7 @@ class Evaluator:
     def __init__(self, env, args):
         self.env = env
         self.args = args
-        self.default_agent = RandomAgent()  # RuleBasedAgent, trained agent, etc.
+        self.default_agent = RuleBasedAgentSmartGeese()  # RuleBasedAgent, trained agent, etc.
 
     def execute(self, models, args):
         agents = {}
@@ -275,7 +275,13 @@ def eval_main(args, argv):
     seed = random.randrange(1e8)
     print('seed = %d' % seed)
 
-    agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
+    # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
+    agents = [
+        agent1,
+        RuleBasedAgentSmartGeese,
+        RuleBasedAgentSmartGeese,
+        RuleBasedAgentSmartGeese,
+    ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
 
