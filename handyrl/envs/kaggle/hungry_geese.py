@@ -46,19 +46,28 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(77, 4, bias=False)
-        self.head_v = nn.Linear(77, 1, bias=False)
+        self.head_p1 = nn.Linear(filters + 77, 48, bias=False)
+        self.head_p2 = nn.Linear(48, 4, bias=False)
+        self.head_v = nn.Linear(filters + 77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        p = F.relu_(self.conv_p(h)).view(h.size(0), h.size(1), -1).mean(1)
-        v = F.relu_(self.conv_v(h)).view(h.size(0), h.size(1), -1).mean(1)
+        p = F.relu_(self.conv_p(h))
+        v = F.relu_(self.conv_v(h))
 
-        p = self.head_p(p)
-        v = torch.tanh(self.head_v(v))
+        p_head = (p * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+        v_head = (v * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+
+        # Global Average Pooling
+        p_gap = p.view(h.size(0), h.size(1), -1).mean(1)
+        v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
+
+        p = F.relu_(self.head_p1(torch.cat([p_head, p_gap], dim=1)))
+        p = self.head_p2(p)
+        v = torch.tanh(self.head_v(torch.cat([v_head, v_gap], dim=1)))
 
         return {'policy': p, 'value': v}
 
