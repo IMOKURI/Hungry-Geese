@@ -278,9 +278,9 @@ def eval_main(args, argv):
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
         agent1,
-        RuleBasedAgentSmartGeese,
-        RuleBasedAgentSmartGeese,
-        RuleBasedAgentSmartGeese,
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
