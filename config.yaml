@@ -14,9 +14,9 @@ train_args:
     gamma: 0.9
     forward_steps: 32
     compress_steps: 4
-    entropy_regularization: 2.0e-3
+    entropy_regularization: 1.0e-2  # 2.0e-3
     entropy_regularization_decay: 0.3
-    update_episodes: 500
+    update_episodes: 1000
     batch_size: 400
     minimum_episodes: 10000
     maximum_episodes: 800000
@@ -25,8 +25,8 @@ train_args:
     worker:
         num_parallel: 6
     lambda: 0.7
-    policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
-    value_target: 'VTRACE' # 'VTRACE' 'TD' 'MC'
+    policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
+    value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
     restart_epoch: 0
 
