@@ -42,17 +42,23 @@ class GeeseNet(nn.Module):
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v = nn.Linear(filters * 2, 1, bias=False)
+
+        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
+
+        self.head_p = nn.Linear(77, 4, bias=False)
+        self.head_v = nn.Linear(77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
         for block in self.blocks:
             h = F.relu_(h + block(h))
-        h_head = (h * x[:,:1]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-        p = self.head_p(h_head)
-        v = torch.tanh(self.head_v(torch.cat([h_head, h_avg], 1)))
+
+        p = F.relu_(self.conv_p(h)).view(h.size(0), h.size(1), -1).mean(1)
+        v = F.relu_(self.conv_v(h)).view(h.size(0), h.size(1), -1).mean(1)
+
+        p = self.head_p(p)
+        v = torch.tanh(self.head_v(v))
 
         return {'policy': p, 'value': v}
 
