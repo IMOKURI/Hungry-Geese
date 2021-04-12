@@ -2,7 +2,7 @@ name: Upload to kaggle
 on:
   push:
     branches:
-      - hungry-geese
+      - main
 
 jobs:
   upload_to_kaggle:
