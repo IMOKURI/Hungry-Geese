@@ -35,13 +35,32 @@ class TorusConv2d(nn.Module):
         return h
 
 
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=4):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 32
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.se_blocks = nn.ModuleList([SELayer(filters) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
@@ -52,8 +71,8 @@ class GeeseNet(nn.Module):
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for block in self.blocks:
-            h = F.relu_(h + block(h))
+        for cnn, se in zip(self.cnn_blocks, self.se_blocks):
+            h = F.relu_(h + se(cnn(h)))
 
         p = F.relu_(self.conv_p(h))
         v = F.relu_(self.conv_v(h))
