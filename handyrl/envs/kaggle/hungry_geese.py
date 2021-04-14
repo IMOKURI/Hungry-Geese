@@ -94,10 +94,10 @@ class SpatialSELayer(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters, hidden = 12, 64, 16
+        layers, filters = 12, 32
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.rn_blocks = nn.ModuleList([Bottleneck(filters, hidden, 4, True) for _ in range(layers)])
+        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True, 4) for _ in range(layers)])
         self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, 4) for _ in range(layers)])
         self.sse_blocks = nn.ModuleList([SpatialSELayer(filters) for _ in range(layers)])
 
@@ -110,8 +110,8 @@ class GeeseNet(nn.Module):
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for bottleneck, cse, sse in zip(self.rn_blocks, self.cse_blocks, self.sse_blocks):
-            h = bottleneck(h)
+        for cnn, cse, sse in zip(self.cnn_blocks, self.cse_blocks, self.sse_blocks):
+            h = cnn(h)
             h = F.relu_(h + cse(h) + sse(h))
 
         p = F.relu_(self.conv_p(h))
