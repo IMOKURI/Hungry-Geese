@@ -21,10 +21,10 @@ from ...environment import BaseEnvironment
 
 
 class TorusConv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn):
+    def __init__(self, input_dim, output_dim, kernel_size, bn, groups=1):
         super().__init__()
         self.edge_size = (kernel_size[0] // 2, kernel_size[1] // 2)
-        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
+        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size, groups=groups)
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
@@ -48,10 +48,10 @@ class Conv2d(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    def __init__(self, input_dim=256, hidden_dim=64, bn=True):
+    def __init__(self, input_dim=256, hidden_dim=64, groups=1, bn=True):
         super().__init__()
         self.conv1x1_0 = Conv2d(input_dim, hidden_dim, (1, 1), bn)
-        self.conv3x3 = TorusConv2d(hidden_dim, hidden_dim, (3, 3), bn)
+        self.conv3x3 = TorusConv2d(hidden_dim, hidden_dim, (3, 3), bn, groups)
         self.conv1x1_1 = Conv2d(hidden_dim, input_dim, (1, 1), bn)
 
     def forward(self, x):
@@ -82,10 +82,10 @@ class SELayer(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters, hidden = 12, 48, 16
+        layers, filters, hidden = 12, 64, 16
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.rn_blocks = nn.ModuleList([Bottleneck(filters, hidden, True) for _ in range(layers)])
+        self.rn_blocks = nn.ModuleList([Bottleneck(filters, hidden, 4, True) for _ in range(layers)])
         self.se_blocks = nn.ModuleList([SELayer(filters, 4) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
