@@ -35,18 +35,6 @@ class TorusConv2d(nn.Module):
         return h
 
 
-class Conv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn):
-        super().__init__()
-        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
-        self.bn = nn.BatchNorm2d(output_dim) if bn else None
-
-    def forward(self, x):
-        h = self.conv(x)
-        h = self.bn(h) if self.bn is not None else h
-        return h
-
-
 class ChannelSELayer(nn.Module):
     def __init__(self, channel, reduction=8):
         super().__init__()
@@ -65,18 +53,6 @@ class ChannelSELayer(nn.Module):
         return x * y.expand_as(x)
 
 
-class SpatialSELayer(nn.Module):
-    def __init__(self, input_dim):
-        super().__init__()
-        self.conv1x1 = Conv2d(input_dim, 1, (1, 1), False)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        y = self.conv1x1(x)
-        y = self.sigmoid(y)
-        return x * y.expand_as(x)
-
-
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -85,7 +61,6 @@ class GeeseNet(nn.Module):
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
         self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, 4) for _ in range(layers)])
-        self.sse_blocks = nn.ModuleList([SpatialSELayer(filters) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
@@ -96,9 +71,9 @@ class GeeseNet(nn.Module):
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for cnn, cse, sse in zip(self.cnn_blocks, self.cse_blocks, self.sse_blocks):
+        for cnn, cse in zip(self.cnn_blocks, self.cse_blocks):
             h = cnn(h)
-            h = F.relu_(h + cse(h) + sse(h))
+            h = F.relu_(h + cse(h))
 
         p = F.relu_(self.conv_p(h))
         v = F.relu_(self.conv_v(h))
