@@ -47,20 +47,6 @@ class Conv2d(nn.Module):
         return h
 
 
-class Bottleneck(nn.Module):
-    def __init__(self, input_dim=256, hidden_dim=64, groups=1, bn=True):
-        super().__init__()
-        self.conv1x1_0 = Conv2d(input_dim, hidden_dim, (1, 1), bn)
-        self.conv3x3 = TorusConv2d(hidden_dim, hidden_dim, (3, 3), bn, groups)
-        self.conv1x1_1 = Conv2d(hidden_dim, input_dim, (1, 1), bn)
-
-    def forward(self, x):
-        h = F.relu_(self.conv1x1_0(x))
-        h = F.relu_(self.conv3x3(h))
-        h = self.conv1x1_1(h)
-        return h
-
-
 class ChannelSELayer(nn.Module):
     def __init__(self, channel, reduction=8):
         super().__init__()
@@ -97,7 +83,7 @@ class GeeseNet(nn.Module):
         layers, filters = 12, 32
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True, 4) for _ in range(layers)])
+        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
         self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, 4) for _ in range(layers)])
         self.sse_blocks = nn.ModuleList([SpatialSELayer(filters) for _ in range(layers)])
 
