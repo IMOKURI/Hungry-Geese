@@ -35,8 +35,34 @@ class TorusConv2d(nn.Module):
         return h
 
 
+class Conv2d(nn.Module):
+    def __init__(self, input_dim, output_dim, kernel_size, bn):
+        super().__init__()
+        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
+        self.bn = nn.BatchNorm2d(output_dim) if bn else None
+
+    def forward(self, x):
+        h = self.conv(x)
+        h = self.bn(h) if self.bn is not None else h
+        return h
+
+
+class Bottleneck(nn.Module):
+    def __init__(self, input_dim=256, hidden_dim=64, bn=True):
+        super().__init__()
+        self.conv1x1_0 = Conv2d(input_dim, hidden_dim, (1, 1), bn)
+        self.conv3x3 = TorusConv2d(hidden_dim, hidden_dim, (3, 3), bn)
+        self.conv1x1_1 = Conv2d(hidden_dim, input_dim, (1, 1), bn)
+
+    def forward(self, x):
+        h = F.relu_(self.conv1x1_0(x))
+        h = F.relu_(self.conv3x3(h))
+        h = self.conv1x1_1(h)
+        return h
+
+
 class SELayer(nn.Module):
-    def __init__(self, channel, reduction=4):
+    def __init__(self, channel, reduction=8):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
@@ -56,23 +82,23 @@ class SELayer(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 32
+        layers, filters, hidden = 12, 48, 16
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-        self.se_blocks = nn.ModuleList([SELayer(filters) for _ in range(layers)])
+        self.rn_blocks = nn.ModuleList([Bottleneck(filters, hidden, True) for _ in range(layers)])
+        self.se_blocks = nn.ModuleList([SELayer(filters, 4) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p1 = nn.Linear(filters + 77, 48, bias=False)
-        self.head_p2 = nn.Linear(48, 4, bias=False)
+        self.head_p1 = nn.Linear(filters + 77, filters, bias=False)
+        self.head_p2 = nn.Linear(filters, 4, bias=False)
         self.head_v = nn.Linear(filters + 77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for cnn, se in zip(self.cnn_blocks, self.se_blocks):
-            h = F.relu_(h + se(cnn(h)))
+        for bottleneck, se in zip(self.rn_blocks, self.se_blocks):
+            h = F.relu_(h + se(bottleneck(h)))
 
         p = F.relu_(self.conv_p(h))
         v = F.relu_(self.conv_v(h))
