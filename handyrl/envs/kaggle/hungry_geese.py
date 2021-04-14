@@ -65,8 +65,8 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p1 = nn.Linear(filters + 77, filters, bias=False)
-        self.head_p2 = nn.Linear(filters, 4, bias=False)
+        self.head_p1 = nn.Linear(filters + 77, 48, bias=False)
+        self.head_p2 = nn.Linear(48, 4, bias=False)
         self.head_v = nn.Linear(filters + 77, 1, bias=False)
 
     def forward(self, x, _=None):
