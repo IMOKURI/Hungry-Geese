@@ -94,7 +94,7 @@ class SpatialSELayer(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters, hidden = 12, 64, 16
+        layers, filters, hidden = 11, 64, 16
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.rn_blocks = nn.ModuleList([Bottleneck(filters, hidden, 4, True) for _ in range(layers)])
