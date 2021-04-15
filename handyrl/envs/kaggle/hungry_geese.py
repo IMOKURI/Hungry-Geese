@@ -260,9 +260,9 @@ class GeeseNetA(nn.Module):
 
     def __init__(self):
         super().__init__()
-        d_model = 112  # 28x4
+        d_model = 224  # 28x8
         n_heads = 8
-        blocks = 4
+        blocks = 6
 
         # self.geese_net = GeeseNet()
         self.encoder = self.GeeseEncoder(d_model)
