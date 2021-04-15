@@ -164,13 +164,11 @@ class GeeseNetA(nn.Module):
             super().__init__()
             self.ln = nn.LayerNorm(embed_dim)
             self.attention = nn.MultiheadAttention(embed_dim, num_heads)
-            self.gru = nn.GRU(embed_dim, embed_dim)
 
         def forward(self, x):
-            h_0 = x.sum(0, keepdim=True)
             h = self.ln(x)
             h, _ = self.attention(h, h, h)
-            h, h_n = self.gru(h, h_0)
+            h = h + x
             return h
 
     class GeeseControll(nn.Module):
