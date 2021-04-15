@@ -270,20 +270,19 @@ class GeeseNetA(nn.Module):
         self.blocks = nn.ModuleList([self.GeeseBlock(d_model, n_heads) for _ in range(blocks)])
         # self.gtrxl = GTrXL(d_model, n_heads, blocks)
 
-        self.control = self.GeeseControll(d_model)
+        # self.control = self.GeeseControll(d_model)
         self.head = self.GeeseHead(d_model)
 
     def forward(self, x, _=None):
         # e = self.geese_net(x)["hidden"]
         # h = self.encoder(e["p"])
-        e = self.encoder(x)
-        h = e
+        h = self.encoder(x)
 
         for block in self.blocks:
             h = h + block(h)
         # h = self.gtrxl(h)
 
-        h = self.control(h, e)
+        # h = self.control(h, e)
         p, v = self.head(h)
         return {"policy": p, "value": v}
 
