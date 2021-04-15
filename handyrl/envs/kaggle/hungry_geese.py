@@ -6,15 +6,13 @@
 
 # wrapper of Hungry Geese environment from kaggle
 
-import math
-import random
 import importlib
+import random
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 # You need to install kaggle_environments, requests
 from kaggle_environments import make
 
@@ -48,8 +46,8 @@ class TorusConv2d(nn.Module):
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
-        h = torch.cat([x[:,:,:,-self.edge_size[1]:], x, x[:,:,:,:self.edge_size[1]]], dim=3)
-        h = torch.cat([h[:,:,-self.edge_size[0]:], h, h[:,:,:self.edge_size[0]]], dim=2)
+        h = torch.cat([x[:, :, :, -self.edge_size[1]:], x, x[:, :, :, :self.edge_size[1]]], dim=3)
+        h = torch.cat([h[:, :, -self.edge_size[0]:], h, h[:, :, :self.edge_size[0]]], dim=2)
         h = self.conv(h)
         h = self.bn(h) if self.bn is not None else h
         return h
@@ -83,56 +81,6 @@ class ChannelSELayer(nn.Module):
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
-
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=1024):
-        super().__init__()
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return x
-
-
-class TEL(nn.TransformerEncoderLayer):
-    def __init__(self, d_model, nhead, n_layers=1, dim_feedforward=256, activation="relu", dropout=0):
-        super().__init__(d_model, nhead, dim_feedforward, dropout,activation)
-        # 2 GRUs are needed - 1 for the beginning / 1 at the end
-        self.gru_1 = nn.GRU(d_model, d_model, num_layers=n_layers, batch_first=True)
-        self.gru_2 = nn.GRU(input_size=d_model, hidden_size=d_model, num_layers=n_layers, batch_first=True)
-
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
-        h = (src).sum(dim=1).unsqueeze(dim=0)
-        src = self.norm1(src)
-        out = self.self_attn(src, src, src, attn_mask=src_mask,
-                               key_padding_mask=src_key_padding_mask)[0]
-
-        out,h = self.gru_1(out,h)
-        out = self.norm2(out)
-        out = self.activation(self.linear1(out))
-        out = self.activation(self.linear2(out))
-        out,h = self.gru_2(out,h)
-        return out
-
-
-class GTrXL(nn.Module):
-    def __init__(self, d_model, nheads, transformer_layers, hidden_dims=256, n_layers=1, activation='relu'):
-        super(GTrXL, self).__init__()
-        # Module layers
-        self.embed = PositionalEncoding(d_model)
-        encoded = TEL(d_model, nheads, n_layers, dim_feedforward=hidden_dims, activation=activation)
-        self.transfomer = nn.TransformerEncoder(encoded, transformer_layers)
-    def forward(self, x):
-        x = self.embed(x)
-        x = self.transfomer(x)
-        return x
 
 
 class GeeseNet(nn.Module):
@@ -214,10 +162,15 @@ class GeeseNetA(nn.Module):
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
             super().__init__()
+            self.ln = nn.LayerNorm(embed_dim)
             self.attention = nn.MultiheadAttention(embed_dim, num_heads)
+            self.gru = nn.GRU(embed_dim, embed_dim)
 
         def forward(self, x):
-            h, _ = self.attention(x, x, x)
+            h_0 = x.sum(0, keepdim=True)
+            h = self.ln(x)
+            h, _ = self.attention(h, h, h)
+            h, h_n = self.gru(h, h_0)
             return h
 
     class GeeseControll(nn.Module):
@@ -279,7 +232,7 @@ class GeeseNetA(nn.Module):
         h = self.encoder(x)
 
         for block in self.blocks:
-            h = h + block(h)
+            h = block(h)
         # h = self.gtrxl(h)
 
         # h = self.control(h, e)
@@ -434,7 +387,8 @@ class Environment(BaseEnvironment):
         action_map = {'N': Action.NORTH, 'S': Action.SOUTH, 'W': Action.WEST, 'E': Action.EAST}
 
         agent = GreedyAgent(Configuration({'rows': 7, 'columns': 11}))
-        agent.last_action = action_map[self.ACTION[self.last_actions[player]][0]] if player in self.last_actions else None
+        agent.last_action = action_map[self.ACTION[self.last_actions[player]]
+                                       [0]] if player in self.last_actions else None
         obs = {**self.obs_list[-1][0]['observation'], **self.obs_list[-1][player]['observation']}
         action = agent(Observation(obs))
         return self.ACTION.index(action)
