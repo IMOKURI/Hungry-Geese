@@ -198,14 +198,14 @@ class GeeseNetA(nn.Module):
             # drop edge 2 cols. size: (..., 7, 7)
             h = h[:, :, :, 2:-2]
 
-            z = torch.zeros((4, h.size(0), self.d_model))
-
             # Info: ['NORTH', 'SOUTH', 'WEST', 'EAST']
             # split into patch 7x4 and flatten
-            z[0] = torch.rot90(h[:, :, :4], 1, (2, 3)).reshape(h.size(0), -1)
-            z[1] = torch.rot90(h[:, :, 3:], 3, (2, 3)).reshape(h.size(0), -1)
-            z[2] = h[:, :, :, :4].reshape(h.size(0), -1)
-            z[3] = torch.rot90(h[:, :, :, 3:], 2, (2, 3)).reshape(h.size(0), -1)
+            n = torch.rot90(h[:, :, :4], 1, (2, 3)).reshape(h.size(0), -1)
+            s = torch.rot90(h[:, :, 3:], 3, (2, 3)).reshape(h.size(0), -1)
+            w = h[:, :, :, :4].reshape(h.size(0), -1)
+            e = torch.rot90(h[:, :, :, 3:], 2, (2, 3)).reshape(h.size(0), -1)
+
+            z = torch.stack([n, s, w, e])
 
             # z = z.permute(1, 0, 2)
 
