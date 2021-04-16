@@ -7,6 +7,7 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
+import math
 import random
 
 import numpy as np
@@ -63,6 +64,23 @@ class Conv2d(nn.Module):
         h = self.conv(x)
         h = self.bn(h) if self.bn is not None else h
         return h
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=1000):
+        super(PositionalEncoding, self).__init__()
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return x
 
 
 class ChannelSELayer(nn.Module):
@@ -123,7 +141,7 @@ class GeeseNet(nn.Module):
         # p = self.head_p(p).view(p.size(0), p.size(1))
 
         v = F.relu_(self.conv_v(h))
-        v= v.view(h.size(0), h.size(1), -1).mean(1)
+        v = v.view(h.size(0), h.size(1), -1).mean(1)
         v = torch.tanh(self.head_v(v))
 
         return {'policy': p, 'value': v}
@@ -133,36 +151,17 @@ class GeeseNetA(nn.Module):
     class GeeseEncoder(nn.Module):
         def __init__(self, d_model):
             super().__init__()
-            # self.edge_size = (1, 2)
-            self.d_model = d_model
-            self.filters = d_model // 28
 
-            self.conv0 = Conv2d(17, self.filters, (1, 1), True)
+            self.conv = Conv2d(17, d_model, (1, 1), True)
+            self.pe = PositionalEncoding(d_model)
 
         def forward(self, x):
-            x = self.conv0(x)
+            x = self.conv(x)
+            x = x.view(x.size(0), x.size(1), -1)
+            x = x.permute(2, 0, 1)
+            x = self.pe(x)
 
-            h = x.view(x.size(0), self.filters, 7, 11)
-
-            # make torus. size: (..., 9, 15)
-            # h = torch.cat([h[:,:,:,-self.edge_size[1]:], h, h[:,:,:,:self.edge_size[1]]], dim=3)
-            # h = torch.cat([h[:,:,-self.edge_size[0]:], h, h[:,:,:self.edge_size[0]]], dim=2)
-
-            # drop edge 2 cols. size: (..., 7, 7)
-            h = h[:, :, :, 2:-2]
-
-            # Info: ['NORTH', 'SOUTH', 'WEST', 'EAST']
-            # split into patch 7x4 and flatten
-            n = torch.rot90(h[:, :, :4], 1, (2, 3)).reshape(h.size(0), -1)
-            s = torch.rot90(h[:, :, 3:], 3, (2, 3)).reshape(h.size(0), -1)
-            w = h[:, :, :, :4].reshape(h.size(0), -1)
-            e = torch.rot90(h[:, :, :, 3:], 2, (2, 3)).reshape(h.size(0), -1)
-
-            z = torch.stack([n, s, w, e])
-
-            # z = z.permute(1, 0, 2)
-
-            return z
+            return x
 
     class GeeseBlock(nn.Module):
         def __init__(self, embed_dim, num_heads):
@@ -176,70 +175,41 @@ class GeeseNetA(nn.Module):
             h = h + x
             return h
 
-    class GeeseControll(nn.Module):
-        def __init__(self, d_model):
-            super().__init__()
-            self.d_model = d_model
-
-        def forward(self, x, e):
-            # h = x.permute(1, 0, 2)
-            h = x
-            return h
-
     class GeeseHead(nn.Module):
         def __init__(self, d_model):
             super().__init__()
-            self.filters = d_model // 28
-            self.head_v = nn.Linear(49, 1, bias=False)
+            self.head_p = nn.Linear(d_model, 4, bias=False)
+            self.head_v = nn.Linear(77, 1, bias=False)
 
         def forward(self, x):
-            p = x.permute(1, 0, 2).mean(-1)
+            p = x[38]
+            p = self.head_p(p)
 
-            v = x.view(x.size(0), x.size(1), self.filters, 7, 4)
-
-            # Info: ['NORTH', 'SOUTH', 'WEST', 'EAST']
-            n = torch.rot90(v[0], 3, (2, 3))
-            s = torch.rot90(v[1], 1, (2, 3))
-            w = v[2]
-            e = torch.rot90(v[3], 2, (2, 3))
-
-            n = F.pad(n, (0, 0, 0, 3, 0, 0, 0, 0), mode="constant", value=0)
-            s = F.pad(s, (0, 0, 3, 0, 0, 0, 0, 0), mode="constant", value=0)
-            w = F.pad(w, (0, 3, 0, 0, 0, 0, 0, 0), mode="constant", value=0)
-            e = F.pad(e, (3, 0, 0, 0, 0, 0, 0, 0), mode="constant", value=0)
-
-            v = n + s + w + e
-            v = v.mean(1).view(x.size(1), -1)
-
+            v = x.permute(1, 0, 2).mean(-1)
             v = torch.tanh(self.head_v(v))
+
             return p, v
 
     def __init__(self):
         super().__init__()
-        d_model = 224  # 28x8
-        n_heads = 8
+        d_model = 32
+        n_heads = 4
         blocks = 6
 
-        # self.geese_net = GeeseNet()
         self.encoder = self.GeeseEncoder(d_model)
 
         self.blocks = nn.ModuleList([self.GeeseBlock(d_model, n_heads) for _ in range(blocks)])
-        # self.gtrxl = GTrXL(d_model, n_heads, blocks)
 
-        # self.control = self.GeeseControll(d_model)
         self.head = self.GeeseHead(d_model)
 
     def forward(self, x, _=None):
-        # e = self.geese_net(x)["hidden"]
-        # h = self.encoder(e["p"])
         h = self.encoder(x)
 
         for block in self.blocks:
             h = block(h)
-        # h = self.gtrxl(h)
 
-        # h = self.control(h, e)
         p, v = self.head(h)
+
         return {"policy": p, "value": v}
 
 
@@ -411,7 +381,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return GeeseNetA
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -425,8 +395,8 @@ class Environment(BaseEnvironment):
         return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
-        x = self.observation_normal(player)
-        # x = self.observation_centering_head(player)
+        # x = self.observation_normal(player)
+        x = self.observation_centering_head(player)
         return x
 
     def observation_normal(self, player=None):
