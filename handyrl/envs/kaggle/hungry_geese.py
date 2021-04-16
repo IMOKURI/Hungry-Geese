@@ -95,9 +95,7 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p1 = nn.Linear(filters + 77, 48, bias=False)
-        self.head_p2 = nn.Linear(48, 4, bias=False)
-        self.head_v = nn.Linear(filters + 77, 1, bias=False)
+        self.head_v = nn.Linear(77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
@@ -105,23 +103,27 @@ class GeeseNet(nn.Module):
             h = cnn(h)
             h = F.relu_(h + cse(h))
 
-        p = F.relu_(self.conv_p(h))
+        p = self.conv_p(h)
+
+        head = x[:, :1]
+        head_n = torch.roll(head, shifts=-1, dims=-2)
+        head_s = torch.roll(head, shifts=1, dims=-2)
+        head_w = torch.roll(head, shifts=-1, dims=-1)
+        head_e = torch.roll(head, shifts=1, dims=-1)
+
+        # p_head = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
+        p_head_n = (p * head_n).view(h.size(0), h.size(1), -1).sum(-1)
+        p_head_s = (p * head_s).view(h.size(0), h.size(1), -1).sum(-1)
+        p_head_w = (p * head_w).view(h.size(0), h.size(1), -1).sum(-1)
+        p_head_e = (p * head_e).view(h.size(0), h.size(1), -1).sum(-1)
+
+        p = torch.stack([p_head_n, p_head_s, p_head_w, p_head_e], dim=1).mean(-1)
+
         v = F.relu_(self.conv_v(h))
+        v= v.view(h.size(0), h.size(1), -1).mean(1)
+        v = torch.tanh(self.head_v(v))
 
-        p_head = (p * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-        v_head = (v * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-
-        # Global Average Pooling
-        p_gap = p.view(h.size(0), h.size(1), -1).mean(1)
-        v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
-
-        hidden = {"p": p_gap, "v": v_gap}
-
-        p = F.relu_(self.head_p1(torch.cat([p_head, p_gap], dim=1)))
-        p = self.head_p2(p)
-        v = torch.tanh(self.head_v(torch.cat([v_head, v_gap], dim=1)))
-
-        return {'policy': p, 'value': v, 'hidden': hidden}
+        return {'policy': p, 'value': v}
 
 
 class GeeseNetA(nn.Module):
@@ -406,7 +408,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetA
+        return GeeseNet
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
