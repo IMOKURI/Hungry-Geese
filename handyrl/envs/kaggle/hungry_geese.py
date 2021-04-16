@@ -95,6 +95,7 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
+        self.head_p = nn.Linear(filters, 1, bias=False)
         self.head_v = nn.Linear(77, 1, bias=False)
 
     def forward(self, x, _=None):
@@ -103,7 +104,7 @@ class GeeseNet(nn.Module):
             h = cnn(h)
             h = F.relu_(h + cse(h))
 
-        p = self.conv_p(h)
+        p = F.relu_(self.conv_p(h))
 
         head = x[:, :1]
         head_n = torch.roll(head, shifts=-1, dims=-2)
@@ -117,7 +118,8 @@ class GeeseNet(nn.Module):
         p_head_w = (p * head_w).view(h.size(0), h.size(1), -1).sum(-1)
         p_head_e = (p * head_e).view(h.size(0), h.size(1), -1).sum(-1)
 
-        p = torch.stack([p_head_n, p_head_s, p_head_w, p_head_e], dim=1).mean(-1)
+        p = torch.stack([p_head_n, p_head_s, p_head_w, p_head_e], dim=1)
+        p = self.head_p(p).view(p.size(0), p.size(1))
 
         v = F.relu_(self.conv_v(h))
         v= v.view(h.size(0), h.size(1), -1).mean(1)
