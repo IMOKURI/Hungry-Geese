@@ -83,6 +83,41 @@ class PositionalEncoding(nn.Module):
         return x
 
 
+class TEL(nn.TransformerEncoderLayer):
+    def __init__(self, d_model, nhead, n_layers=1, dim_feedforward=256, activation="relu", dropout=0):
+        super().__init__(d_model, nhead, dim_feedforward, dropout, activation)
+        # 2 GRUs are needed - 1 for the beginning / 1 at the end
+        self.gru_1 = nn.GRU(d_model, d_model, num_layers=n_layers, batch_first=True)
+        self.gru_2 = nn.GRU(input_size=d_model, hidden_size=d_model, num_layers=n_layers, batch_first=True)
+
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+        h = (src).sum(dim=1).unsqueeze(dim=0)
+        src = self.norm1(src)
+        out = self.self_attn(src, src, src, attn_mask=src_mask,
+                             key_padding_mask=src_key_padding_mask)[0]
+
+        out, h = self.gru_1(out, h)
+        out = self.norm2(out)
+        out = self.activation(self.linear1(out))
+        out = self.activation(self.linear2(out))
+        out, h = self.gru_2(out, h)
+        return out
+
+
+class GTrXL(nn.Module):
+    def __init__(self, d_model, nheads,  transformer_layers, hidden_dims=256, n_layers=1, activation='relu'):
+        super(GTrXL, self).__init__()
+        # Module layers
+        self.embed = PositionalEncoding(d_model)
+        encoded = TEL(d_model, nheads, n_layers, dim_feedforward=hidden_dims, activation=activation)
+        self.transfomer = nn.TransformerEncoder(encoded, transformer_layers)
+
+    def forward(self, x):
+        x = self.embed(x)
+        x = self.transfomer(x)
+        return x
+
+
 class ChannelSELayer(nn.Module):
     def __init__(self, channel, reduction=8):
         super().__init__()
@@ -153,13 +188,13 @@ class GeeseNetA(nn.Module):
             super().__init__()
 
             self.conv = Conv2d(17, d_model, (1, 1), True)
-            self.pe = PositionalEncoding(d_model)
+            # self.pe = PositionalEncoding(d_model)
 
         def forward(self, x):
             x = self.conv(x)
             x = x.view(x.size(0), x.size(1), -1)
             x = x.permute(2, 0, 1)
-            x = self.pe(x)
+            # x = self.pe(x)
 
             return x
 
@@ -192,21 +227,25 @@ class GeeseNetA(nn.Module):
 
     def __init__(self):
         super().__init__()
-        d_model = 16
-        n_heads = 1
-        blocks = 8
+        d_model = 32
+        n_heads = 4
+        # blocks = 12
+        t_layers = 1
+        d_ff = 128
 
         self.encoder = self.GeeseEncoder(d_model)
 
-        self.blocks = nn.ModuleList([self.GeeseBlock(d_model, n_heads) for _ in range(blocks)])
+        # self.blocks = nn.ModuleList([self.GeeseBlock(d_model, n_heads) for _ in range(blocks)])
+        self.gtrxl = GTrXL(d_model, n_heads, t_layers, d_ff)
 
         self.head = self.GeeseHead(d_model)
 
     def forward(self, x, _=None):
         h = self.encoder(x)
 
-        for block in self.blocks:
-            h = block(h)
+        # for block in self.blocks:
+        #     h = block(h)
+        h = self.gtrxl(h)
 
         p, v = self.head(h)
 
