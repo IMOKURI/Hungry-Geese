@@ -194,7 +194,7 @@ class GeeseNetA(nn.Module):
         super().__init__()
         d_model = 32
         n_heads = 4
-        blocks = 6
+        blocks = 4
 
         self.encoder = self.GeeseEncoder(d_model)
 
