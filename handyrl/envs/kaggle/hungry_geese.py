@@ -7,6 +7,7 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
+import math
 import random
 
 import numpy as np
@@ -83,6 +84,52 @@ class ChannelSELayer(nn.Module):
         return x * y.expand_as(x)
 
 
+class FactorizedNoisy(nn.Module):
+    def __init__(self, in_features, out_features, bias=True):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.bias = bias
+
+        # 学習パラメータを生成
+        self.u_w = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.sigma_w = nn.Parameter(torch.Tensor(out_features, in_features))
+        if self.bias:
+            self.u_b = nn.Parameter(torch.Tensor(out_features))
+            self.sigma_b = nn.Parameter(torch.Tensor(out_features))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # 初期値設定
+        stdv = 1. / math.sqrt(self.u_w.size(1))
+        self.u_w.data.uniform_(-stdv, stdv)
+        if self.bias:
+            self.u_b.data.uniform_(-stdv, stdv)
+
+        initial_sigma = 0.5 * stdv
+        self.sigma_w.data.fill_(initial_sigma)
+        if self.bias:
+            self.sigma_b.data.fill_(initial_sigma)
+
+    def forward(self, x):
+        # 毎回乱数を生成
+        rand_in = self._f(torch.randn(1, self.in_features, device=self.u_w.device))
+        rand_out = self._f(torch.randn(self.out_features, 1, device=self.u_w.device))
+
+        epsilon_w = torch.matmul(rand_out, rand_in)
+        w = self.u_w + self.sigma_w * epsilon_w
+
+        if self.bias:
+            epsilon_b = rand_out.squeeze()
+            b = self.u_b + self.sigma_b * epsilon_b
+            return  F.linear(x, w, b)
+
+        return  F.linear(x, w)
+
+    def _f(self, x):
+        return torch.sign(x) * torch.sqrt(torch.abs(x))
+
+
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -95,8 +142,8 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v = nn.Linear(77, 1, bias=False)
+        self.head_p = FactorizedNoisy(filters, 4, bias=False)
+        self.head_v = FactorizedNoisy(77, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
