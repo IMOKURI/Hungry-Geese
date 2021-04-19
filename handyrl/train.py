@@ -391,7 +391,7 @@ class Trainer:
 
             self.steps += 1
 
-        print('loss = %s' % ' '.join([k + ':' + '%.3f' % (l / data_cnt) for k, l in loss_sum.items()]))
+        print('loss = %s' % ' '.join([k + ':' + '%.5f' % (l / data_cnt) for k, l in loss_sum.items()]))
 
         self.data_cnt_ema = self.data_cnt_ema * 0.8 + data_cnt / (1e-2 + batch_cnt) * 0.2
         for param_group in self.optimizer.param_groups:
