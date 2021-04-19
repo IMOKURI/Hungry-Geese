@@ -84,50 +84,45 @@ class ChannelSELayer(nn.Module):
         return x * y.expand_as(x)
 
 
-class FactorizedNoisy(nn.Module):
-    def __init__(self, in_features, out_features, bias=True):
-        super().__init__()
+# https://github.com/Kaixhin/Rainbow/blob/master/model.py
+# Factorised NoisyLinear layer with bias
+class NoisyLinear(nn.Module):
+    def __init__(self, in_features, out_features, std_init=0.5):
+        super(NoisyLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.bias = bias
-
-        # 学習パラメータを生成
-        self.u_w = nn.Parameter(torch.Tensor(out_features, in_features))
-        self.sigma_w = nn.Parameter(torch.Tensor(out_features, in_features))
-        if self.bias:
-            self.u_b = nn.Parameter(torch.Tensor(out_features))
-            self.sigma_b = nn.Parameter(torch.Tensor(out_features))
+        self.std_init = std_init
+        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
+        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
+        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
+        self.bias_mu = nn.Parameter(torch.empty(out_features))
+        self.bias_sigma = nn.Parameter(torch.empty(out_features))
+        self.register_buffer('bias_epsilon', torch.empty(out_features))
         self.reset_parameters()
+        self.reset_noise()
 
     def reset_parameters(self):
-        # 初期値設定
-        stdv = 1. / math.sqrt(self.u_w.size(1))
-        self.u_w.data.uniform_(-stdv, stdv)
-        if self.bias:
-            self.u_b.data.uniform_(-stdv, stdv)
+        mu_range = 1 / math.sqrt(self.in_features)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
 
-        initial_sigma = 0.5 * stdv
-        self.sigma_w.data.fill_(initial_sigma)
-        if self.bias:
-            self.sigma_b.data.fill_(initial_sigma)
+    def _scale_noise(self, size):
+        x = torch.randn(size, device=self.weight_mu.device)
+        return x.sign().mul_(x.abs().sqrt_())
 
-    def forward(self, x):
-        # 毎回乱数を生成
-        rand_in = self._f(torch.randn(1, self.in_features, device=self.u_w.device))
-        rand_out = self._f(torch.randn(self.out_features, 1, device=self.u_w.device))
+    def reset_noise(self):
+        epsilon_in = self._scale_noise(self.in_features)
+        epsilon_out = self._scale_noise(self.out_features)
+        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
 
-        epsilon_w = torch.matmul(rand_out, rand_in)
-        w = self.u_w + self.sigma_w * epsilon_w
-
-        if self.bias:
-            epsilon_b = rand_out.squeeze()
-            b = self.u_b + self.sigma_b * epsilon_b
-            return  F.linear(x, w, b)
-
-        return  F.linear(x, w)
-
-    def _f(self, x):
-        return torch.sign(x) * torch.sqrt(torch.abs(x))
+    def forward(self, input):
+        if self.training:
+            return F.linear(input, self.weight_mu + self.weight_sigma * self.weight_epsilon, self.bias_mu + self.bias_sigma * self.bias_epsilon)
+        else:
+            return F.linear(input, self.weight_mu, self.bias_mu)
 
 
 class GeeseNet(nn.Module):
@@ -142,8 +137,8 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = FactorizedNoisy(filters, 4, bias=False)
-        self.head_v = FactorizedNoisy(77, 1, bias=False)
+        self.head_p = NoisyLinear(filters, 4)
+        self.head_v = NoisyLinear(77, 1)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
@@ -153,14 +148,19 @@ class GeeseNet(nn.Module):
 
         p = F.relu_(self.conv_p(h))
         head = x[:, :1]
-        p = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
-        p = self.head_p(p)
+        p_head = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
+        p = self.head_p(p_head)
 
         v = F.relu_(self.conv_v(h))
-        v = v.view(h.size(0), h.size(1), -1).mean(1)
-        v = torch.tanh(self.head_v(v))
+        v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
+        v = torch.tanh(self.head_v(v_gap))
 
         return {'policy': p, 'value': v}
+
+    def reset_noise(self):
+        for name, module in self.named_children():
+            if "head" in name:
+                module.reset_noise()
 
 
 class Environment(BaseEnvironment):

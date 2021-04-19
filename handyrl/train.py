@@ -366,6 +366,7 @@ class Trainer:
                 train_model = nn.DataParallel(model)
             train_model.cuda()
         train_model.train()
+        train_model.reset_noise()
 
         while data_cnt == 0 or not (self.update_flag or self.shutdown_flag):
             # episodes were only tuple of arrays
