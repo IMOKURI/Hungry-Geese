@@ -7,7 +7,6 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
-import math
 import random
 
 import numpy as np
@@ -66,58 +65,6 @@ class Conv2d(nn.Module):
         return h
 
 
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=1000):
-        super(PositionalEncoding, self).__init__()
-
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return x
-
-
-class TEL(nn.TransformerEncoderLayer):
-    def __init__(self, d_model, nhead, n_layers=1, dim_feedforward=256, activation="relu", dropout=0):
-        super().__init__(d_model, nhead, dim_feedforward, dropout, activation)
-        # 2 GRUs are needed - 1 for the beginning / 1 at the end
-        self.gru_1 = nn.GRU(d_model, d_model, num_layers=n_layers, batch_first=True)
-        self.gru_2 = nn.GRU(input_size=d_model, hidden_size=d_model, num_layers=n_layers, batch_first=True)
-
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
-        h = (src).sum(dim=1).unsqueeze(dim=0)
-        src = self.norm1(src)
-        out = self.self_attn(src, src, src, attn_mask=src_mask,
-                             key_padding_mask=src_key_padding_mask)[0]
-
-        out, h = self.gru_1(out, h)
-        out = self.norm2(out)
-        out = self.activation(self.linear1(out))
-        out = self.activation(self.linear2(out))
-        out, h = self.gru_2(out, h)
-        return out
-
-
-class GTrXL(nn.Module):
-    def __init__(self, d_model, nheads,  transformer_layers, hidden_dims=256, n_layers=1, activation='relu'):
-        super(GTrXL, self).__init__()
-        # Module layers
-        self.embed = PositionalEncoding(d_model)
-        encoded = TEL(d_model, nheads, n_layers, dim_feedforward=hidden_dims, activation=activation)
-        self.transfomer = nn.TransformerEncoder(encoded, transformer_layers)
-
-    def forward(self, x):
-        x = self.embed(x)
-        x = self.transfomer(x)
-        return x
-
-
 class ChannelSELayer(nn.Module):
     def __init__(self, channel, reduction=8):
         super().__init__()
@@ -148,7 +95,7 @@ class GeeseNet(nn.Module):
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(filters, 1, bias=False)
+        self.head_p = nn.Linear(filters, 4, bias=False)
         self.head_v = nn.Linear(77, 1, bias=False)
 
     def forward(self, x, _=None):
@@ -158,97 +105,15 @@ class GeeseNet(nn.Module):
             h = F.relu_(h + cse(h))
 
         p = F.relu_(self.conv_p(h))
-
         head = x[:, :1]
-        head_n = torch.roll(head, shifts=-1, dims=-2)
-        head_s = torch.roll(head, shifts=1, dims=-2)
-        head_w = torch.roll(head, shifts=-1, dims=-1)
-        head_e = torch.roll(head, shifts=1, dims=-1)
-
-        # p_head = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
-        p_head_n = (p * head_n).view(h.size(0), h.size(1), -1).sum(-1)
-        p_head_s = (p * head_s).view(h.size(0), h.size(1), -1).sum(-1)
-        p_head_w = (p * head_w).view(h.size(0), h.size(1), -1).sum(-1)
-        p_head_e = (p * head_e).view(h.size(0), h.size(1), -1).sum(-1)
-
-        p = torch.stack([p_head_n, p_head_s, p_head_w, p_head_e], dim=1)
-        p = self.head_p(p).view(p.size(0), p.size(1))
+        p = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
+        p = self.head_p(p)
 
         v = F.relu_(self.conv_v(h))
         v = v.view(h.size(0), h.size(1), -1).mean(1)
         v = torch.tanh(self.head_v(v))
 
         return {'policy': p, 'value': v}
-
-
-class GeeseNetA(nn.Module):
-    class GeeseEncoder(nn.Module):
-        def __init__(self, d_model):
-            super().__init__()
-
-            self.conv = Conv2d(17, d_model, (1, 1), True)
-            # self.pe = PositionalEncoding(d_model)
-
-        def forward(self, x):
-            x = self.conv(x)
-            x = x.view(x.size(0), x.size(1), -1)
-            x = x.permute(2, 0, 1)
-            # x = self.pe(x)
-
-            return x
-
-    class GeeseBlock(nn.Module):
-        def __init__(self, embed_dim, num_heads):
-            super().__init__()
-            self.ln = nn.LayerNorm(embed_dim)
-            self.attention = nn.MultiheadAttention(embed_dim, num_heads)
-
-        def forward(self, x):
-            h = self.ln(x)
-            h, _ = self.attention(h, h, h)
-            h = h + x
-            return h
-
-    class GeeseHead(nn.Module):
-        def __init__(self, d_model):
-            super().__init__()
-            self.head_p = nn.Linear(d_model, 4, bias=False)
-            self.head_v = nn.Linear(77, 1, bias=False)
-
-        def forward(self, x):
-            p = x[38]
-            p = self.head_p(p)
-
-            v = x.permute(1, 0, 2).mean(-1)
-            v = torch.tanh(self.head_v(v))
-
-            return p, v
-
-    def __init__(self):
-        super().__init__()
-        d_model = 32
-        n_heads = 4
-        # blocks = 12
-        t_layers = 1
-        d_ff = 128
-
-        self.encoder = self.GeeseEncoder(d_model)
-
-        # self.blocks = nn.ModuleList([self.GeeseBlock(d_model, n_heads) for _ in range(blocks)])
-        self.gtrxl = GTrXL(d_model, n_heads, t_layers, d_ff)
-
-        self.head = self.GeeseHead(d_model)
-
-    def forward(self, x, _=None):
-        h = self.encoder(x)
-
-        # for block in self.blocks:
-        #     h = block(h)
-        h = self.gtrxl(h)
-
-        p, v = self.head(h)
-
-        return {"policy": p, "value": v}
 
 
 class Environment(BaseEnvironment):
