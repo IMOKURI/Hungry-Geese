@@ -360,13 +360,13 @@ class Trainer:
             return
 
         batch_cnt, data_cnt, loss_sum = 0, 0, {}
+        self.model.reset_noise()
         train_model = model = ModelWrapper(self.model)
         if self.gpu:
             if self.gpu > 1:
                 train_model = nn.DataParallel(model)
             train_model.cuda()
         train_model.train()
-        train_model.reset_noise()
 
         while data_cnt == 0 or not (self.update_flag or self.shutdown_flag):
             # episodes were only tuple of arrays
