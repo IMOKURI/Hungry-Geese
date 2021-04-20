@@ -131,17 +131,18 @@ class NoisyLinear(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 32
+        layers, filters = 6, 40
 
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-        self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, 4) for _ in range(layers)])
+        self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, reduction=4) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
         self.head_p = NoisyLinear(filters, 4)
-        self.head_v = NoisyLinear(77, 1)
+        self.head_v1 = NoisyLinear(77, 16)
+        self.head_v2 = NoisyLinear(16, 1)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
@@ -156,7 +157,8 @@ class GeeseNet(nn.Module):
 
         v = F.relu_(self.conv_v(h))
         v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
-        v = torch.tanh(self.head_v(v_gap))
+        v = F.relu_(self.head_v1(v_gap))
+        v = torch.tanh(self.head_v2(v))
 
         return {'policy': p, 'value': v}
 
