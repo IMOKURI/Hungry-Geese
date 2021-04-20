@@ -171,7 +171,7 @@ class GeeseImageNet(nn.Module):
         super().__init__()
         layers, filters = 6, 32
 
-        self.conv0 = Conv2d(4, filters, (7, 7), True, 7)
+        self.conv0 = Conv2d(4, filters, (8, 8), True, 8)
         self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -210,11 +210,11 @@ class GeeseImage:
     NUM_ROW, NUM_COL = 7, 11
 
     def __init__(self, **kwargs):
-        width = 1.08
-        height = 0.69
+        width = 0.88
+        height = 0.56
         padding = 0.0
 
-        self.fig = plt.figure(figsize=(width, height), facecolor=(1, 1, 1))
+        self.fig = plt.figure(dpi=100, figsize=(width, height), facecolor=(1, 1, 1))
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         ax = plt.axes()
         plt.axis("off")
@@ -284,7 +284,7 @@ class GeeseImage:
         ax.set_xlim(-0.5 - padding, self.NUM_COL - 0.5 + padding)
 
         # FOOD
-        food, *_ = ax.plot([], [], "D", color=self.FOOD_COLOR, ms=4)
+        food, *_ = ax.plot([], [], "D", color=self.FOOD_COLOR, ms=3)
 
         # GEESE
         geese = []
@@ -292,8 +292,8 @@ class GeeseImage:
         for i in range(self.NUM_AGENTS):
             color = self.GOOSE_ID_TO_COLOR[i]
             g, *_ = ax.plot([], [], color=color)
-            g.set_linewidth(2)
-            h, *_ = ax.plot([], [], "o", color=color, ms=4)
+            g.set_linewidth(1)
+            h, *_ = ax.plot([], [], "o", color=color, ms=2)
             geese.append(g)
             heads.append(h)
 
@@ -586,7 +586,7 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.full((4, 49, 77), 255, dtype=np.float32)
+        b = np.full((4, 56, 88), 255, dtype=np.float32)
 
         for c, obs in enumerate(self.obs_list[:-5:-1]):
             b[c] = self.geese_image.to_numpy(obs, player)
