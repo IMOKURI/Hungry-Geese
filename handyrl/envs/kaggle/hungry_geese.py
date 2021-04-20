@@ -498,7 +498,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseImageNet
+        return GeeseNet
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -512,9 +512,9 @@ class Environment(BaseEnvironment):
         return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
-        # x = self.observation_normal(player)
+        x = self.observation_normal(player)
         # x = self.observation_centering_head(player)
-        x = self.observation_image(player)
+        # x = self.observation_image(player)
         return x
 
     def observation_normal(self, player=None):
