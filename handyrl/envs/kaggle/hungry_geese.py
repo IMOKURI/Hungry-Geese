@@ -449,6 +449,15 @@ class Environment(BaseEnvironment):
                 return False
         return True
 
+    def reward(self):
+        """
+        もともと以下の値となっている
+        reward = steps survived * (configuration.max_length + 1) + goose length
+        """
+        obs = self.obs_list[-1]
+        rewards = {p: o["reward"] for p, o in enumerate(obs)}
+        return rewards
+
     def outcome(self):
         # return terminal outcomes
         # 1st: 1.0 2nd: 0.33 3rd: -0.33 4th: -1.00
