@@ -131,11 +131,11 @@ class NoisyLinear(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 20, 64
+        layers, filters = 8, 32
 
-        self.conv0 = Conv2d(17, filters, (1, 1), True)
-        self.cnn_blocks1 = nn.ModuleList([Conv2d(filters, filters, (1, 1), True) for _ in range(layers)])
-        self.cnn_blocks2 = nn.ModuleList([Conv2d(filters, filters, (1, 1), True) for _ in range(layers)])
+        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
+        self.cnn_blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.cnn_blocks2 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p1 = Conv2d(filters, 2, (1, 1), True)
         self.head_p1 = NoisyLinear(77 * 2, 4)
