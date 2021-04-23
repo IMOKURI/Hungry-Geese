@@ -166,169 +166,6 @@ class GeeseNet(nn.Module):
                 module.reset_noise()
 
 
-class GeeseImageNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        layers, filters = 6, 32
-
-        self.conv0 = Conv2d(4, filters, (8, 8), True, 8)
-        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
-
-        self.head_p = NoisyLinear(77, 4)
-        self.head_v = NoisyLinear(77, 1)
-
-    def forward(self, x, _=None):
-        h = F.relu_(self.conv0(x))
-
-        for cnn in self.cnn_blocks:
-            h = F.relu_(h + cnn(h))
-
-        p = F.relu_(self.conv_p(h))
-        v = F.relu_(self.conv_v(h))
-
-        p_gmp, _ = torch.max(p.view(h.size(0), h.size(1), -1), dim=1)
-        v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
-
-        p = self.head_p(p_gmp)
-        v = torch.tanh(self.head_v(v_gap))
-
-        return {'policy': p, 'value': v}
-
-    def reset_noise(self):
-        for name, module in self.named_children():
-            if "head" in name:
-                module.reset_noise()
-
-
-class GeeseImage:
-    GOOSE_ID_TO_COLOR = {0: "blue", 1: "orange", 2: "orange", 3: "orange"}
-    FOOD_COLOR = "green"
-    NUM_AGENTS = 4
-    NUM_ROW, NUM_COL = 7, 11
-
-    def __init__(self, **kwargs):
-        width = 0.88
-        height = 0.56
-        padding = 0.0
-
-        self.fig = plt.figure(dpi=100, figsize=(width, height), facecolor=(1, 1, 1))
-        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
-        ax = plt.axes()
-        plt.axis("off")
-
-        self.plot_objects = self.init_func(ax, padding=padding, **kwargs)
-
-    def flat_to_point(self, _x):
-        assert 0 <= _x < self.NUM_COL * self.NUM_ROW
-        return _x % self.NUM_COL, self.NUM_ROW - _x // self.NUM_COL - 1
-
-    def food_positions(self, state):
-        points = state[0]["observation"]["food"]
-        points = [self.flat_to_point(x) for x in points]
-        assert len(points) == 2
-        x, y = [x[0] for x in points], [x[1] for x in points]
-        if x[0] == x[1] and y[0] == y[1]:
-            x[0] -= 0.25
-            x[1] += 0.25
-        return x, y
-
-    def player_positions(self, state, goose_id: int):
-        points = state[0]["observation"]["geese"][goose_id]
-        points = [self.flat_to_point(x) for x in points]
-
-        if len(points) == 0:
-            return [], []
-
-        if len(points) == 1:
-            return [points[0][0]], [points[0][1]]
-
-        last_x, last_y = points[0][0], points[0][1]
-        xx, yy = [last_x], [last_y]
-        for p in points[1:]:
-            x, y = p[0], p[1]
-
-            if x == 0 and last_x == self.NUM_COL - 1:
-                xx += [self.NUM_COL + 2, self.NUM_COL + 2, -2, -2]
-                yy += [y, -2, -2, y]
-
-            if x == self.NUM_COL - 1 and last_x == 0:
-                xx += [-2, -2, self.NUM_COL + 2, self.NUM_COL + 2]
-                yy += [y, -2, -2, y]
-
-            if y == 0 and last_y == self.NUM_ROW - 1:
-                xx += [x, -2, -2, x]
-                yy += [self.NUM_ROW + 2, self.NUM_ROW + 2, -2, -2]
-
-            if y == self.NUM_ROW - 1 and last_y == 0:
-                xx += [x, -2, -2, x]
-                yy += [-2, -2, self.NUM_ROW + 2, self.NUM_ROW + 2]
-
-            xx.append(x)
-            yy.append(y)
-            last_x, last_y = x, y
-
-        return xx, yy
-
-    def head_positions(self, state, goose_id: int):
-        points = state[0]["observation"]["geese"][goose_id]
-        points = [self.flat_to_point(x) for x in points]
-        return [x[0] for x in points[:1]], [x[1] for x in points[:1]]
-
-    def init_func(self, ax, padding=0.5):
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        ax.set_ylim(-0.5 - padding, self.NUM_ROW - 0.5 + padding)
-        ax.set_xlim(-0.5 - padding, self.NUM_COL - 0.5 + padding)
-
-        # FOOD
-        food, *_ = ax.plot([], [], "D", color=self.FOOD_COLOR, ms=3)
-
-        # GEESE
-        geese = []
-        heads = []
-        for i in range(self.NUM_AGENTS):
-            color = self.GOOSE_ID_TO_COLOR[i]
-            g, *_ = ax.plot([], [], color=color)
-            g.set_linewidth(1)
-            h, *_ = ax.plot([], [], "o", color=color, ms=2)
-            geese.append(g)
-            heads.append(h)
-
-        return food, geese, heads
-
-    def to_image(self, state, player=0):
-        food, geese, heads = self.plot_objects
-
-        # FOOD
-        food.set_data(self.food_positions(state))
-
-        # GEESE
-        for i in range(self.NUM_AGENTS):
-            geese[(i - player) % self.NUM_AGENTS].set_data(self.player_positions(state, i))
-            heads[(i - player) % self.NUM_AGENTS].set_data(self.head_positions(state, i))
-
-        return (food, *geese, *heads)
-
-    def to_numpy(self, state, player=0):
-        self.to_image(state, player)
-
-        buf = io.BytesIO()
-        self.fig.savefig(buf, format="png")
-
-        buf.seek(0)
-        img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
-        buf.close()
-
-        img = cv2.imdecode(img_arr, 1)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        return img
-
-
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
@@ -523,7 +360,6 @@ class Environment(BaseEnvironment):
     def observation(self, player=None):
         # x = self.observation_normal(player)
         x = self.observation_centering_head(player)
-        # x = self.observation_image(player)
         return x
 
     def observation_normal(self, player=None):
@@ -588,20 +424,6 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs['food']:
             b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
-
-        return b
-
-    def observation_image(self, player=None):
-        if player is None:
-            player = 0
-
-        b = np.full((4, 56, 88), 255, dtype=np.float32)
-
-        for c, obs in enumerate(self.obs_list[:-5:-1]):
-            b[c] = self.geese_image.to_numpy(obs, player)
-
-        # normalize
-        b = b / 255.0
 
         return b
 
