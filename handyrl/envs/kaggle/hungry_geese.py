@@ -58,7 +58,7 @@ class TorusConv2d(nn.Module):
 
 
 class Conv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn, stride=1):
+    def __init__(self, input_dim, output_dim, kernel_size, bn=True, stride=1):
         super().__init__()
         self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size, stride=stride)
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
@@ -131,33 +131,31 @@ class NoisyLinear(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 6, 40
+        layers, filters = 20, 64
 
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.cnn_blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-        self.cse_blocks = nn.ModuleList([ChannelSELayer(filters, reduction=4) for _ in range(layers)])
+        self.conv0 = Conv2d(17, filters, (1, 1), True)
+        self.cnn_blocks1 = nn.ModuleList([Conv2d(filters, filters, (1, 1), True) for _ in range(layers)])
+        self.cnn_blocks2 = nn.ModuleList([Conv2d(filters, filters, (1, 1), True) for _ in range(layers)])
 
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_p1 = Conv2d(filters, 2, (1, 1), True)
+        self.head_p1 = NoisyLinear(77 * 2, 4)
 
-        self.head_p = NoisyLinear(filters, 4)
-        self.head_v1 = NoisyLinear(77, 16)
-        self.head_v2 = NoisyLinear(16, 1)
+        self.conv_v1 = Conv2d(filters, 1, (1, 1), True)
+        self.head_v1 = NoisyLinear(77, 77)
+        self.head_v2 = NoisyLinear(77, 1)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for cnn, cse in zip(self.cnn_blocks, self.cse_blocks):
-            h = cnn(h)
-            h = F.relu_(h + cse(h))
 
-        p = F.relu_(self.conv_p(h))
-        head = x[:, :1]
-        p_head = (p * head).view(h.size(0), h.size(1), -1).sum(-1)
-        p = self.head_p(p_head)
+        for cnn1, cnn2 in zip(self.cnn_blocks1, self.cnn_blocks2):
+            h = F.relu_(cnn1(h))
+            h = F.relu_(h + cnn2(h))
 
-        v = F.relu_(self.conv_v(h))
-        v_gap = v.view(h.size(0), h.size(1), -1).mean(1)
-        v = F.relu_(self.head_v1(v_gap))
+        p = F.relu_(self.conv_p1(h)).view(h.size(0), -1)
+        p = self.head_p1(p)
+
+        v = F.relu_(self.conv_v1(h)).view(h.size(0), -1)
+        v = F.relu_(self.head_v1(v))
         v = torch.tanh(self.head_v2(v))
 
         return {'policy': p, 'value': v}
@@ -523,8 +521,8 @@ class Environment(BaseEnvironment):
         return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
-        x = self.observation_normal(player)
-        # x = self.observation_centering_head(player)
+        # x = self.observation_normal(player)
+        x = self.observation_centering_head(player)
         # x = self.observation_image(player)
         return x
 
