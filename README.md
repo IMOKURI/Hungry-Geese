@@ -15,7 +15,7 @@ https://www.kaggle.com/c/hungry-geese
 - GPUが遊んでいるようならGPUサーバーの `config.yaml` の `num_batchers` を増やす
 - `config.yaml` の `batch_size` は GPUのメモリサイズに合わせる
     - ただし learning rate がこの `batch_size` に依存しているっぽい [このあたり](https://github.com/IMOKURI/Hungry-Geese/blob/825c94ead47638ed56479de87481838ee8a58bff/handyrl/train.py#L318-L322)
-- `config.yaml` の `maximum_episodes` はGPUサーバーのメモリサイズに依存する (128GBで 100万くらい)
+- `config.yaml` の `maximum_episodes` はGPUサーバーのメモリサイズに依存する (モデルサイズによるが128GBで 100万くらい)
 
 ## ハイパーパラメータ
 
