@@ -28,3 +28,8 @@ https://www.kaggle.com/c/hungry-geese
 - `lambda`: n が 1 だと最終的な報酬を重視, n が 0 だと直近の報酬を重視
 - `policy_target`, `value_target`: 損失関数(行動評価用と状態価値評価用) (基本はTD)
 
+## 対戦相手
+
+- 学習時の対戦相手は直前の自分のモデル
+- 学習時の評価用の相手は [ここで定義](https://github.com/IMOKURI/Hungry-Geese/blob/09acf84a9ecec0cd67277a301f0959263c9c565f/handyrl/evaluation.py#L123)
+- シュミレーション `python main.py -e` の対戦相手は [ここで定義](https://github.com/IMOKURI/Hungry-Geese/blob/09acf84a9ecec0cd67277a301f0959263c9c565f/handyrl/evaluation.py#L278-L284)
