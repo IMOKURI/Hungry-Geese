@@ -178,7 +178,6 @@ class Environment(BaseEnvironment):
         super().__init__()
         self.env = make("hungry_geese")
         self.reset()
-        self.geese_image = GeeseImage()
 
     def reset(self, args={}):
         obs = self.env.reset(num_agents=self.NUM_AGENTS)
