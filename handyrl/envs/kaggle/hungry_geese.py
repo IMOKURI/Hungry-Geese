@@ -166,6 +166,84 @@ class GeeseNet(nn.Module):
                 module.reset_noise()
 
 
+class GeeseNetA(nn.Module):
+    class GeeseEncoder(nn.Module):
+        def __init__(self, filters):
+            super().__init__()
+            self.conv0 = TorusConv2d(17, filters, (3, 3), True)
+            self.conv1 = TorusConv2d(17, 1, (3, 3), True)
+
+        def forward(self, x, _=None):
+            c = self.conv0(x)
+            m = self.conv1(x)
+            return c, m
+
+    class GeeseCNN(nn.Module):
+        def __init__(self, filters, layers):
+            super().__init__()
+            self.blocks = nn.ModuleList([
+                TorusConv2d(filters, filters, (3, 3), True)
+                for _ in range(layers)
+            ])
+
+        def forward(self, x, _=None):
+            h = x
+            for b in self.blocks:
+                h = F.relu_(h + b(h))
+            return h
+
+    class GeeseMHA(nn.Module):
+        def __init__(self, d_model, n_heads):
+            super().__init__()
+            self.attention = nn.MultiheadAttention(d_model, n_heads)
+
+        def forward(self, x, _=None):
+            h, _ = self.attention(x, x, x)
+            return h
+
+    class GeeseHead(nn.Module):
+        def __init__(self, filters, d_model):
+            super().__init__()
+            self.head_p = NoisyLinear(filters + d_model, 4)
+            self.head_v = NoisyLinear(filters + d_model, 1)
+
+        def forward(self, x, _=None):
+            p = self.head_p(x)
+            v = torch.tanh(self.head_v(x))
+
+            return p, v
+
+        def reset_noise(self):
+            for name, module in self.named_children():
+                if "head" in name:
+                    module.reset_noise()
+
+    def __init__(self):
+        super().__init__()
+        layers, filters = 12, 32
+        d_model, n_heads = 80, 8
+
+        self.encoder = self.GeeseEncoder(filters)
+        self.cnn = self.GeeseCNN(filters, layers)
+        self.mha = self.GeeseMHA(d_model, n_heads)
+        self.head = self.GeeseHead(filters, d_model)
+
+    def forward(self, x, _=None):
+        c, m = self.encoder(x)
+
+        c = self.cnn(c)
+        head = (c * x[:, :1]).view(c.size(0), c.size(1), -1).sum(-1)
+
+        m = F.pad(m.view(x.size(0), -1), pad=(0, 3, 0, 0)).view(1, x.size(0), -1)
+        m = self.mha(m)
+        gap = m.view(x.size(0), -1)
+
+        y = torch.cat([head, gap], 1)
+        p, v = self.head(y)
+
+        return {'policy': p, 'value': v}
+
+
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
@@ -178,7 +256,6 @@ class Environment(BaseEnvironment):
         super().__init__()
         self.env = make("hungry_geese")
         self.reset()
-        self.geese_image = GeeseImage()
 
     def reset(self, args={}):
         obs = self.env.reset(num_agents=self.NUM_AGENTS)

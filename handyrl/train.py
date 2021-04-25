@@ -360,7 +360,7 @@ class Trainer:
             return
 
         batch_cnt, data_cnt, loss_sum = 0, 0, {}
-        self.model.reset_noise()
+        self.model.head.reset_noise()
         train_model = model = ModelWrapper(self.model)
         if self.gpu:
             if self.gpu > 1:
