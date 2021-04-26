@@ -131,39 +131,34 @@ class NoisyLinear(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 8, 32
-
+        layers, filters = 12, 32
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.cnn_blocks1 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-        self.cnn_blocks2 = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
-        self.conv_p1 = Conv2d(filters, 2, (1, 1), True)
-        self.head_p1 = NoisyLinear(77 * 2, 4)
+        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.conv_v1 = Conv2d(filters, 1, (1, 1), True)
-        self.head_v1 = NoisyLinear(77, 77)
-        self.head_v2 = NoisyLinear(77, 1)
+        self.head_p = nn.Linear(filters, 4, bias=False)
+        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
+        self.head_v2 = nn.Linear(filters, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
+        for block in self.blocks:
+            h = F.relu_(h + block(h))
 
-        for cnn1, cnn2 in zip(self.cnn_blocks1, self.cnn_blocks2):
-            h = F.relu_(cnn1(h))
-            h = F.relu_(h + cnn2(h))
+        h_p = F.relu_(self.conv_p(h))
+        h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
+        p = self.head_p(h_head_p)
 
-        p = F.relu_(self.conv_p1(h)).view(h.size(0), -1)
-        p = self.head_p1(p)
+        h_v = F.relu_(self.conv_v(h))
+        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
+        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
-        v = F.relu_(self.conv_v1(h)).view(h.size(0), -1)
-        v = F.relu_(self.head_v1(v))
-        v = torch.tanh(self.head_v2(v))
+        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
+        v = torch.tanh(self.head_v2(h_v))
 
-        return {'policy': p, 'value': v}
-
-    def reset_noise(self):
-        for name, module in self.named_children():
-            if "head" in name:
-                module.reset_noise()
+        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
 
 
 class Environment(BaseEnvironment):
@@ -357,8 +352,8 @@ class Environment(BaseEnvironment):
         return (x + offset) % self.NUM_COL
 
     def observation(self, player=None):
-        # x = self.observation_normal(player)
-        x = self.observation_centering_head(player)
+        x = self.observation_normal(player)
+        # x = self.observation_centering_head(player)
         return x
 
     def observation_normal(self, player=None):
