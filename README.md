@@ -8,7 +8,7 @@ https://www.kaggle.com/c/hungry-geese
 - CPUサーバーの `config.yaml` で
     - `num_parallel` を使用するCPU数にする
     - `server_address` をGPUサーバーのアドレスにする
-- CPUサーバーで `python main.py -ts`
+- CPUサーバーで `python main.py -w`
 
 ### その他
 
