@@ -130,7 +130,7 @@ class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 48
-        self.conv0 = TorusConv2d(26, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(27, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -344,7 +344,7 @@ class Environment(BaseEnvironment):
 
     def outcome(self):
         # return terminal outcomes
-        # 1st: 1.0 2nd: 0.33 3rd: -0.33 4th: -1.00
+        # 1st: 1.00 2nd: 0.33 3rd: -0.33 4th: -1.00
         rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
@@ -406,14 +406,26 @@ class Environment(BaseEnvironment):
     def to_col(self, offset, x):
         return (x + offset) % self.NUM_COL
 
-    def empty_around_head(self, field, x):
-        a = [
+    def around(self, x):
+        return [
             ((x[0] - 1) % 7, x[1]),
             ((x[0] + 1) % 7, x[1]),
             (x[0], (x[1] - 1) % 11),
             (x[0], (x[1] + 1) % 11),
         ]
-        return [e for e in a if field[e[0], e[1]] == 0]
+
+    def empty_around_head(self, field, x):
+        return [e for e in self.around(x) if field[e[0], e[1]] == 0]
+
+    def food_around_head(self, head, food):
+        food_ = [
+            (self.to_row(0, f), self.to_col(0, f))
+            for f in food
+        ]
+        for a in self.around(head):
+            if a in food_:
+                return True
+        return False
 
     def bfs(self, field, head):
         q = deque(self.empty_around_head(field, head))
@@ -503,41 +515,62 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 6 + 2, 7 * 11), dtype=np.float32)
+        b = np.zeros((self.NUM_AGENTS * 6 + 3, 7 * 11), dtype=np.float32)
+        head = defaultdict(tuple)
+        prev_head = defaultdict(tuple)
 
         obs = self.obs_list[-1][0]['observation']
         for p, geese in enumerate(obs['geese']):
+            pid = (p - player) % self.NUM_AGENTS
+
             # head position
             for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, pos] = 1
-                if p - player == 0:
-                    head = (self.to_row(0, pos), self.to_col(0, pos))
+                b[0 + pid, pos] = 1
+                head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
+
             # tip position
             for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, pos] = 1
+                if (
+                    (pid == 0 and len(geese) > 2)
+                    or (pid != 0 and not self.food_around_head(head[pid], obs["food"]))
+                ):
+                    b[4 + pid, pos] = 1
+
             # whole position
             for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, pos] = 1
-
-        if len(self.obs_list) > 1:
-            obs = self.obs_list[-2][0]['observation']
-            for p, geese in enumerate(obs['geese']):
-                # head position
-                for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, pos] = 1
-                # tip position
-                for pos in geese[-1:]:
-                    b[16 + (p - player) % self.NUM_AGENTS, pos] = 1
-                # whole position
-                for pos in geese:
-                    b[20 + (p - player) % self.NUM_AGENTS, pos] = 1
+                b[8 + pid, pos] = 1
 
         # food
         for pos in obs['food']:
             b[24, pos] = 1
 
+        if len(self.obs_list) > 1:
+            prev_obs = self.obs_list[-2][0]['observation']
+            for p, geese in enumerate(prev_obs['geese']):
+                pid = (p - player) % self.NUM_AGENTS
+
+                # head position
+                for pos in geese[:1]:
+                    b[12 + pid, pos] = 1
+                    prev_head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
+
+                # tip position
+                for pos in geese[-1:]:
+                    if (
+                        (pid == 0 and len(geese) > 2)
+                        or (pid != 0 and not self.food_around_head(prev_head[pid], prev_obs["food"]))
+                    ):
+                        b[16 + pid, pos] = 1
+
+                # whole position
+                for pos in geese:
+                    b[20 + pid, pos] = 1
+
+            for pos in prev_obs['food']:
+                b[25, pos] = 1
+
         # movable position
-        b[25] = self.bfs(b[8:13].sum(0).reshape(7, 11), head).reshape(-1)
+        b[26] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
 
         return b.reshape(-1, 7, 11)
 
