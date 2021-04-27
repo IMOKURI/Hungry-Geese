@@ -9,6 +9,7 @@
 import importlib
 import math
 import random
+from collections import defaultdict, deque
 
 import numpy as np
 import torch
@@ -129,7 +130,7 @@ class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 48
-        self.conv0 = TorusConv2d(25, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(26, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -405,6 +406,28 @@ class Environment(BaseEnvironment):
     def to_col(self, offset, x):
         return (x + offset) % self.NUM_COL
 
+    def empty_around_head(self, field, x):
+        a = [
+            ((x[0] - 1) % 7, x[1]),
+            ((x[0] + 1) % 7, x[1]),
+            (x[0], (x[1] - 1) % 11),
+            (x[0], (x[1] + 1) % 11),
+        ]
+        return [e for e in a if field[e[0], e[1]] == 0]
+
+    def bfs(self, field, head):
+        q = deque(self.empty_around_head(field, head))
+        movable = np.zeros([7, 11])
+        searched = defaultdict(bool)
+        while len(q) != 0:
+            v = q.popleft()
+            movable[v] = 1
+            searched[v] = True
+            edges = [a for a in self.empty_around_head(field, v) if not searched[a]]
+            for edge in edges:
+                q.append(edge)
+        return movable
+
     def observation(self, player=None):
         # x = self.observation_normal(player)
         # x = self.observation_centering_head(player)
@@ -480,13 +503,15 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 6 + 1, 7 * 11), dtype=np.float32)
+        b = np.zeros((self.NUM_AGENTS * 6 + 2, 7 * 11), dtype=np.float32)
 
         obs = self.obs_list[-1][0]['observation']
         for p, geese in enumerate(obs['geese']):
             # head position
             for pos in geese[:1]:
                 b[0 + (p - player) % self.NUM_AGENTS, pos] = 1
+                if p - player == 0:
+                    head = (self.to_row(0, pos), self.to_col(0, pos))
             # tip position
             for pos in geese[-1:]:
                 b[4 + (p - player) % self.NUM_AGENTS, pos] = 1
@@ -510,6 +535,9 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs['food']:
             b[24, pos] = 1
+
+        # movable position
+        b[25] = self.bfs(b[8:13].sum(0).reshape(7, 11), head).reshape(-1)
 
         return b.reshape(-1, 7, 11)
 
