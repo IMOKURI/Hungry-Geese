@@ -130,7 +130,7 @@ class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 32
-        self.conv0 = TorusConv2d(18, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -298,11 +298,29 @@ class Environment(BaseEnvironment):
 
         return bonus
 
+    def reward(self):
+        x = self.reward_default()
+        return x
+
+    def reward_default(self):
+        """
+        もともと以下の値となっている
+        reward = steps survived * (configuration.max_length + 1) + goose length
+        """
+        obs = self.obs_list[-1]
+        rewards = {}
+        for p, o in enumerate(obs):
+            rewards[p] = o["reward"]
+
+        return rewards
+
+    def reward_offensive(self):
+        pass
+
+    def reward_defensive(self):
+        pass
+
     # def reward(self):
-    #     """
-    #     もともと以下の値となっている
-    #     reward = steps survived * (configuration.max_length + 1) + goose length
-    #     """
     #     try:
     #         prev_obs = self.obs_list[-2]
     #     except IndexError:
@@ -428,7 +446,7 @@ class Environment(BaseEnvironment):
         return False
 
     def bfs(self, field, head):
-        q = deque(self.empty_around_head(field, head))
+        q = deque([head])
         movable = np.zeros([7, 11])
         searched = defaultdict(bool)
         while len(q) != 0:
@@ -450,8 +468,8 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 2, 7 * 11), dtype=np.float32)
-        head = defaultdict(tuple)
+        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
+        # head = defaultdict(tuple)
         obs = self.obs_list[-1][0]['observation']
 
         for p, geese in enumerate(obs['geese']):
@@ -460,7 +478,7 @@ class Environment(BaseEnvironment):
             # head position
             for pos in geese[:1]:
                 b[0 + pid, pos] = 1
-                head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
+                # head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
             # tip position
             for pos in geese[-1:]:
                 b[4 + pid, pos] = 1
@@ -482,7 +500,7 @@ class Environment(BaseEnvironment):
             b[16, pos] = 1
 
         # movable position
-        b[17] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
+        # b[17] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
 
         return b.reshape(-1, 7, 11)
 
