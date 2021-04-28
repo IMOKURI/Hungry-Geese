@@ -129,8 +129,8 @@ class NoisyLinear(nn.Module):
 class GeeseNet(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 48
-        self.conv0 = TorusConv2d(27, filters, (3, 3), True)
+        layers, filters = 12, 32
+        self.conv0 = TorusConv2d(18, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -298,49 +298,49 @@ class Environment(BaseEnvironment):
 
         return bonus
 
-    def reward(self):
-        """
-        もともと以下の値となっている
-        reward = steps survived * (configuration.max_length + 1) + goose length
-        """
-        try:
-            prev_obs = self.obs_list[-2]
-        except IndexError:
-            prev_obs = None
-        obs = self.obs_list[-1]
+    # def reward(self):
+    #     """
+    #     もともと以下の値となっている
+    #     reward = steps survived * (configuration.max_length + 1) + goose length
+    #     """
+    #     try:
+    #         prev_obs = self.obs_list[-2]
+    #     except IndexError:
+    #         prev_obs = None
+    #     obs = self.obs_list[-1]
 
-        alive_rate = {
-            0: np.inf,
-            2: 3500,
-            3: 2500,
-            4: 2000,
-        }
-        num_alive = len([o for o in obs if o["status"] == "ACTIVE"])
-        prev_num_alive = len([o for o in prev_obs if o["status"] == "ACTIVE"]) if prev_obs is not None else num_alive
+    #     alive_rate = {
+    #         0: np.inf,
+    #         2: 3500,
+    #         3: 2500,
+    #         4: 2000,
+    #     }
+    #     num_alive = len([o for o in obs if o["status"] == "ACTIVE"])
+    #     prev_num_alive = len([o for o in prev_obs if o["status"] == "ACTIVE"]) if prev_obs is not None else num_alive
 
-        fill = [
-            pos
-            for goose in obs[0]["observation"]["geese"]
-            for pos in goose
-        ]
-        num_fill = len(fill)
-        danger_rate = min(1.0, num_fill ** 2 / alive_rate[num_alive])
+    #     fill = [
+    #         pos
+    #         for goose in obs[0]["observation"]["geese"]
+    #         for pos in goose
+    #     ]
+    #     num_fill = len(fill)
+    #     danger_rate = min(1.0, num_fill ** 2 / alive_rate[num_alive])
 
-        death_rate = 200
-        death_bonus = (prev_num_alive - num_alive) * death_rate * danger_rate
+    #     death_rate = 200
+    #     death_bonus = (prev_num_alive - num_alive) * death_rate * danger_rate
 
-        ht_bonus = self.head_tail_bonus(danger_rate)
+    #     ht_bonus = self.head_tail_bonus(danger_rate)
 
-        rewards = {}
-        for p, o in enumerate(obs):
-            if o["status"] != "ACTIVE":
-                rewards[p] = o["reward"]
-            else:
-                step_reward = o["reward"] // 100 * 100
-                length_reward = o["reward"] % 100 * (1 - danger_rate)
-                rewards[p] = step_reward + length_reward + death_bonus + ht_bonus[p]
+    #     rewards = {}
+    #     for p, o in enumerate(obs):
+    #         if o["status"] != "ACTIVE":
+    #             rewards[p] = o["reward"]
+    #         else:
+    #             step_reward = o["reward"] // 100 * 100
+    #             length_reward = o["reward"] % 100 * (1 - danger_rate)
+    #             rewards[p] = step_reward + length_reward + death_bonus + ht_bonus[p]
 
-        return rewards
+    #     return rewards
 
     def outcome(self):
         # return terminal outcomes
@@ -441,39 +441,48 @@ class Environment(BaseEnvironment):
         return movable
 
     def observation(self, player=None):
-        # x = self.observation_normal(player)
+        x = self.observation_normal(player)
         # x = self.observation_centering_head(player)
-        x = self.observation_2step(player)
+        # x = self.observation_2step(player)
         return x
 
     def observation_normal(self, player=None):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
+        b = np.zeros((self.NUM_AGENTS * 4 + 2, 7 * 11), dtype=np.float32)
+        head = defaultdict(tuple)
         obs = self.obs_list[-1][0]['observation']
 
         for p, geese in enumerate(obs['geese']):
+            pid = (p - player) % self.NUM_AGENTS
+
             # head position
             for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, pos] = 1
+                b[0 + pid, pos] = 1
+                head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
             # tip position
             for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, pos] = 1
+                b[4 + pid, pos] = 1
             # whole position
             for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, pos] = 1
+                b[8 + pid, pos] = 1
 
         # previous head position
         if len(self.obs_list) > 1:
             obs_prev = self.obs_list[-2][0]['observation']
             for p, geese in enumerate(obs_prev['geese']):
+                pid = (p - player) % self.NUM_AGENTS
+
                 for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, pos] = 1
+                    b[12 + pid, pos] = 1
 
         # food
         for pos in obs['food']:
             b[16, pos] = 1
+
+        # movable position
+        b[17] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
 
         return b.reshape(-1, 7, 11)
 
