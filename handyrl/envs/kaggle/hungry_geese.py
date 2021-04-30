@@ -276,8 +276,8 @@ class Environment(BaseEnvironment):
                 return False
         return True
 
-    def head_tail_bonus(self, danger_rate):
-        bonus_rate = 200
+    def head_tail_bonus(self, danger_rate=1.0):
+        bonus_rate = 100
 
         bonus = {i: 0 for i in range(4)}
 
@@ -297,6 +297,20 @@ class Environment(BaseEnvironment):
                 bonus[i] = bonus_rate * danger_rate
 
         return bonus
+
+    def death_bonus(self, danger_rate=1.0):
+        death_rate = 200
+
+        try:
+            prev_obs = self.obs_list[-2]
+        except IndexError:
+            prev_obs = None
+        obs = self.obs_list[-1]
+
+        num_alive = len([o for o in obs if o["status"] == "ACTIVE"])
+        prev_num_alive = len([o for o in prev_obs if o["status"] == "ACTIVE"]) if prev_obs is not None else num_alive
+
+        return (prev_num_alive - num_alive) * death_rate * danger_rate
 
     def move_to(self, x, a):
         actions = {
@@ -347,7 +361,25 @@ class Environment(BaseEnvironment):
         return rewards
 
     def reward_defensive(self):
-        pass
+        """
+        step数 * 100 + max(10, 長さ) + head tail 報酬(100) + death数 * 200
+        """
+        obs = self.obs_list[-1]
+        geese = obs[0]["observation"]["geese"]
+        ht_bonus = self.head_tail_bonus()
+        d_bonus = self.death_bonus()
+
+        rewards = {}
+        for p, o in enumerate(obs):
+            step_reward = o["reward"] // 100 * 100
+            length_reward = max(o["reward"] % 100, 4)
+
+            if o["status"] == "ACTIVE":
+                rewards[p] = step_reward + length_reward + ht_bonus[p] + d_bonus
+            else:
+                rewards[p] = step_reward + length_reward
+
+        return rewards
 
     def outcome(self):
         # return terminal outcomes
