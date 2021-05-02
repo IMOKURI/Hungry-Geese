@@ -365,7 +365,6 @@ class Environment(BaseEnvironment):
         step数 * 100 + max(10, 長さ) + head tail 報酬(100) + death数 * 200
         """
         obs = self.obs_list[-1]
-        geese = obs[0]["observation"]["geese"]
         ht_bonus = self.head_tail_bonus()
         d_bonus = self.death_bonus()
 
