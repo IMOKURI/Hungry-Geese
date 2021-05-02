@@ -324,8 +324,8 @@ class Environment(BaseEnvironment):
 
     def reward(self):
         # x = self.reward_default()
-        x = self.reward_offensive()
-        # x = self.reward_defensive()
+        # x = self.reward_offensive()
+        x = self.reward_defensive()
         return x
 
     def reward_default(self):
