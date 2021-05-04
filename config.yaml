@@ -13,15 +13,15 @@ train_args:
     compress_steps: 4
     entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.1
-    update_episodes: 500
-    batch_size: 2048
-    minimum_episodes: 10000
+    update_episodes: 100
+    batch_size: 32
+    minimum_episodes: 100
     maximum_episodes: 1000000
     epochs: -1
-    num_batchers: 16
+    num_batchers: 1
     eval_rate: 0.1
     worker:
-        num_parallel: 6
+        num_parallel: 8
     lambda: 0.7
     policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'

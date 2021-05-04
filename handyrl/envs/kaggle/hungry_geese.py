@@ -208,11 +208,11 @@ class GeeseNetShunPI(nn.Module):
         h = h.permute(1, 0, 2) # x: [bs, s_len, embed] => [s_len, bs, embed]
         for block in self.blocks:
             h = block(h)
-        h = torch.squeeze(h[0:1, :, :]) # only first hidden is used
-        h = torch.cat([h, x_scalar])
+        h = torch.squeeze(h[0:1, :, :], dim=0) # only first hidden is used
+        h = torch.cat([h, x_scalar], dim=-1)
         h = self.mlp(h)
 
-        p = F.softmax(self.head_p(h), dim=1)
+        p = F.softmax(self.head_p(h), dim=-1)
         v = self.head_v(h)
 
         return {"policy": p, "value": v}
@@ -401,7 +401,7 @@ class Environment(BaseEnvironment):
 
     def reward_offensive(self):
         """
-        長さ - 全プレイヤーの長さ平均
+        (長さ - 全プレイヤーの長さ平均) / 10
         ※死亡プレイヤーは0とする
         """
         obs = self.obs_list[-1]
@@ -416,7 +416,7 @@ class Environment(BaseEnvironment):
         rewards = {}
         for p, o in enumerate(obs):
             if o["reward"] / 100 == max_steps:
-                rewards[p] = o["reward"] % 100 - len_means
+                rewards[p] = (o["reward"] % 100 - len_means) / 10.0
             else:
                 rewards[p] = -len_means
         return rewards
