@@ -14,11 +14,11 @@ train_args:
     entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.1
     update_episodes: 500
-    batch_size: 250
+    batch_size: 2048
     minimum_episodes: 10000
     maximum_episodes: 1000000
     epochs: -1
-    num_batchers: 8
+    num_batchers: 16
     eval_rate: 0.1
     worker:
         num_parallel: 6
@@ -26,7 +26,7 @@ train_args:
     policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
-    restart_epoch: 2462
+    restart_epoch: 0
 
 worker_args:
     server_address: '127.0.0.1'

@@ -716,7 +716,7 @@ class Environment(BaseEnvironment):
 
         # food
         for pos in obs['food']:
-            b[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4 + 7 + 11] = 1
+            x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4 + 7 + 11] = 1
 
         #(step数 - 100) / 100
         x_scalar[0] = (len(self.obs_list) - 100) / 100
