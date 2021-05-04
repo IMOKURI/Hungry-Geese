@@ -444,7 +444,7 @@ class Environment(BaseEnvironment):
     def outcome(self):
         # return terminal outcomes
         # 1st: 1.00 2nd: 0.33 3rd: -0.33 4th: -1.00
-        rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
+        rewards = self.reward()
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
             # outcomesは順位スコアではなく、rewardそのものを返すようにした(攻撃用・守備用モデルの場合)
