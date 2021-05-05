@@ -127,36 +127,31 @@ class NoisyLinear(nn.Module):
 
 
 class GeeseNet(nn.Module):
-    def __init__(self):
+    def __init__(self, spacial_input_dim=4*4+1, scalar_input_dim=1, embed_dim=64, n_layers=8, dropout=0.1):
         super().__init__()
-        layers, filters = 12, 32
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.embed = nn.Linear(spacial_input_dim, embed_dim)
+        self.blocks = nn.ModuleList([TorusConv2d(embed_dim, embed_dim, (3, 3), True) for _ in range(n_layers)])
+        self.mlp = MLP(embed_dim+scalar_input_dim, dropout)
 
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
-
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_v2 = nn.Linear(filters, 1, bias=False)
+        self.head_p = nn.Linear(embed_dim+scalar_input_dim, 4, bias=False)
+        self.head_v = nn.Linear(embed_dim+scalar_input_dim, 1, bias=False)
 
     def forward(self, x, _=None):
-        h = F.relu_(self.conv0(x))
+        x_spacial, x_scalar = x
+        h = self.embed(x_spacial)
+        h = h.permute(0, 3, 1, 2)
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(self.conv_p(h))
-        h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        p = self.head_p(h_head_p)
+        h = torch.squeeze(torch.squeeze(h[:, :, 0:1, 0:1], dim=-1), dim=-1)
+        h = torch.cat([h, x_scalar], dim=-1)
+        h = self.mlp(h)
 
-        h_v = F.relu_(self.conv_v(h))
-        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
+        p = F.softmax(self.head_p(h), dim=-1)
+        v = self.head_v(h)
 
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
-        v = torch.tanh(self.head_v2(h_v))
+        return {"policy": p, "value": v}
 
-        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
 
 class MLP(nn.Module):
     def __init__(self, embed_dim, dropout):
@@ -191,7 +186,7 @@ class GeeseNetShunPI(nn.Module):
     #x_spacial: マップ情報
     #x_scalar: その他情報
 
-    def __init__(self, spacial_input_dim=4*4+7+11+1, scalar_input_dim=1, embed_dim=64, n_layers=3, attn_heads=4, dropout=0.1):
+    def __init__(self, spacial_input_dim=4*4+7+11+1, scalar_input_dim=1, embed_dim=32, n_layers=8, attn_heads=8, dropout=0.1):
         super().__init__()
         self.embed = nn.Linear(spacial_input_dim, embed_dim)
 
@@ -408,6 +403,7 @@ class Environment(BaseEnvironment):
         max_steps = 0
         for p, o in enumerate(obs):
             max_steps = max(max_steps, o["reward"] / 100)
+            #print(p, o["reward"])
         len_sums = 0
         for p, o in enumerate(obs):
             if o["reward"] / 100 == max_steps:
@@ -418,7 +414,8 @@ class Environment(BaseEnvironment):
             if o["reward"] / 100 == max_steps:
                 rewards[p] = (o["reward"] % 100 - len_means) / 10.0
             else:
-                rewards[p] = -len_means
+                rewards[p] = -len_means / 10.0
+        
         return rewards
 
     def reward_defensive(self):
@@ -453,7 +450,16 @@ class Environment(BaseEnvironment):
 
     def legal_actions(self, player):
         # return legal action list
-        return list(range(len(self.ACTION)))
+        ret = list(range(len(self.ACTION)))
+        if len(self.obs_list) > 1:
+            obs = self.obs_list[-1][0]['observation']
+            prev_obs = self.obs_list[-2][0]['observation']
+            if len(obs['geese'][player]) > 0:
+                for i in range(len(self.ACTION)):
+                    if self.move_to(self.to_offset(prev_obs['geese'][player][0]), self.ACTION[i]) == self.to_offset(obs['geese'][player][0]):
+                        ret.remove(i)
+                        break
+        return ret
 
     def action_length(self):
         # maximum action label (it determines output size of policy function)
@@ -722,6 +728,48 @@ class Environment(BaseEnvironment):
         x_scalar[0] = (len(self.obs_list) - 100) / 100
 
         return x_spacial.reshape(7*11, -1), x_scalar
+
+    def observation_shunpi2(self, player=None):
+        if player is None:
+            player = 0
+
+        x_spacial = np.zeros((7, 11, 4*4 + 1), dtype=np.float32)
+        x_scalar = np.zeros(1, dtype=np.float32)
+        obs = self.obs_list[-1][0]['observation']
+
+        player_goose_head = obs['geese'][player][0]
+        o_row, o_col = self.to_offset(player_goose_head)
+
+        for p, geese in enumerate(obs['geese']):
+            # head position
+            for pos in geese[:1]:
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*0 + (p - player) % 4] = 1
+            # tip position
+            for pos in geese[-1:]:
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*1 + (p - player) % 4] = 1
+            # whole position(head寄り、tail寄り)
+            for i in range(len(geese)):
+                if i == 0 or i == len(geese) - 1:
+                    continue
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*2 + (p - player) % 4] = (len(geese) - 1 - i) / len(geese)
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*3 + (p - player) % 4] = i / len(geese)
+
+        # x座標(0~6)
+        #for pos in range(77):
+        #    x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4 + self.to_row(o_row, pos)] = 1
+
+        # y座標(0~10)
+        #for pos in range(77):
+        #    x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4 + 7 + self.to_col(o_row, pos)] = 1
+
+        # food
+        for pos in obs['food']:
+            x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4] = 1
+
+        #(step数 - 100) / 100
+        x_scalar[0] = (len(self.obs_list) - 100) / 100
+
+        return x_spacial.reshape(7, 11, -1), x_scalar
 
 
 if __name__ == '__main__':

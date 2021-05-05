@@ -525,6 +525,7 @@ class Learner:
         else:
             n, r, r2 = self.results[self.model_era]
             mean = r / (n + 1e-6)
+            print(mean, r, n)
             print('mean score = %.3f (%.1f / %d)' % (mean, r, n))
 
         if self.model_era not in self.generation_results:
@@ -533,6 +534,7 @@ class Learner:
             n, r, r2 = self.generation_results[self.model_era]
             mean = r / (n + 1e-6)
             std = (r2 / (n + 1e-6) - mean ** 2) ** 0.5
+            print(mean, r, n)
             print('generation stats = %.3f +- %.3f' % (mean, std))
 
         model, steps = self.trainer.update()
