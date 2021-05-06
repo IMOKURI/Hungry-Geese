@@ -26,7 +26,7 @@ train_args:
     policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'VTRACE' # 'VTRACE' 'TD' 'MC'
     seed: 440
-    restart_epoch: 2462
+    restart_epoch: 0  # 2462
 
 worker_args:
     server_address: '127.0.0.1'

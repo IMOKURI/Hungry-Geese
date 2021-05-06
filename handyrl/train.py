@@ -440,19 +440,19 @@ class Learner:
         if self.model_era == 0:
             self.model = RandomModel(self.env)
             # Load weight of pretrained models
-            offensive_model_path = "ds/models/offensive_4439.pth"
-            defensive_model_path = "ds/models/defensive_2502.pth"
-            self.model.offensive.load_state_dict(torch.load(offensive_model_path), strict=False)
-            self.model.defensive.load_state_dict(torch.load(defensive_model_path), strict=False)
+            # offensive_model_path = "ds/models/offensive_4439.pth"
+            # defensive_model_path = "ds/models/defensive_2502.pth"
+            # self.model.offensive.load_state_dict(torch.load(offensive_model_path), strict=False)
+            # self.model.defensive.load_state_dict(torch.load(defensive_model_path), strict=False)
         else:
             self.model = train_model
             self.model.load_state_dict(torch.load(self.model_path(self.model_era)), strict=False)
 
         # Disable trainable for pretrained weights
-        for param in self.model.offensive.parameters():
-            param.requires_grad = False
-        for param in self.model.defensive.parameters():
-            param.requires_grad = False
+        # for param in self.model.offensive.parameters():
+        #     param.requires_grad = False
+        # for param in self.model.defensive.parameters():
+        #     param.requires_grad = False
 
         # generated datum
         self.generation_results = {}
