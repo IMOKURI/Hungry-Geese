@@ -209,7 +209,7 @@ class MultiGeeseNet(nn.Module):
 class GeeseNetKURI(nn.Module):
     def __init__(self):
         super().__init__()
-        filters = 24
+        filters = 16
         layers = 12
 
         self.conv0 = TorusConv2d(9, filters, (3, 3), True)
