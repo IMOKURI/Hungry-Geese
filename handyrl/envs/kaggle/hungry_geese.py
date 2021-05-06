@@ -277,7 +277,7 @@ class Environment(BaseEnvironment):
         return True
 
     def head_tail_bonus(self, danger_rate=1.0):
-        bonus_rate = 100
+        bonus_rate = 300
 
         bonus = {i: 0 for i in range(4)}
 
@@ -362,7 +362,7 @@ class Environment(BaseEnvironment):
 
     def reward_defensive(self):
         """
-        step数 * 100 + max(10, 長さ) + head tail 報酬(100) + death数 * 200
+        step数 * 100 + max(10, 長さ) + head tail 報酬(300)  # + death数 * 200
         """
         obs = self.obs_list[-1]
         ht_bonus = self.head_tail_bonus()
@@ -371,10 +371,10 @@ class Environment(BaseEnvironment):
         rewards = {}
         for p, o in enumerate(obs):
             step_reward = o["reward"] // 100 * 100
-            length_reward = max(o["reward"] % 100, 4)
+            length_reward = max(o["reward"] % 100, 10)
 
             if o["status"] == "ACTIVE":
-                rewards[p] = step_reward + length_reward + ht_bonus[p] + d_bonus
+                rewards[p] = step_reward + length_reward + ht_bonus[p]  # + d_bonus
             else:
                 rewards[p] = step_reward + length_reward
 
