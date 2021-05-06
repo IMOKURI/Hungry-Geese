@@ -319,7 +319,7 @@ class Trainer:
         self.data_cnt_ema = self.args['batch_size'] * self.args['forward_steps']
         self.params = list(self.model.parameters())
         lr = self.default_lr * self.data_cnt_ema
-        self.optimizer = optim.Adam(self.params, lr=lr, weight_decay=1e-5) if len(self.params) > 0 else None
+        self.optimizer = optim.Adam(self.params, lr=lr) if len(self.params) > 0 else None
         self.steps = 0
         self.lock = threading.Lock()
         self.batcher = Batcher(self.args, self.episodes)

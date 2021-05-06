@@ -127,7 +127,7 @@ class NoisyLinear(nn.Module):
 
 
 class GeeseNet(nn.Module):
-    def __init__(self, spacial_input_dim=4*4+1, scalar_input_dim=1, embed_dim=64, n_layers=8, dropout=0.1):
+    def __init__(self, spacial_input_dim=4*4+1, scalar_input_dim=1, embed_dim=64, n_layers=8, dropout=0.0):
         super().__init__()
         self.embed = nn.Linear(spacial_input_dim, embed_dim)
         self.blocks = nn.ModuleList([TorusConv2d(embed_dim, embed_dim, (3, 3), True) for _ in range(n_layers)])
@@ -148,7 +148,7 @@ class GeeseNet(nn.Module):
         h = self.mlp(h)
 
         p = F.softmax(self.head_p(h), dim=-1)
-        v = self.head_v(h)
+        v = torch.tanh(self.head_v(h))
 
         return {"policy": p, "value": v}
 
@@ -157,7 +157,9 @@ class MLP(nn.Module):
     def __init__(self, embed_dim, dropout):
         super(MLP, self).__init__()
         self.c_fc = nn.Linear(embed_dim, embed_dim*4)
+        torch.nn.init.xavier_uniform(self.c_fc.weight)
         self.c_proj = nn.Linear(embed_dim*4, embed_dim)
+        torch.nn.init.xavier_uniform(self.c_proj.weight)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -171,7 +173,7 @@ class Block(nn.Module):
         self.attn = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, dropout=dropout)
         self.ln_1 = nn.LayerNorm(embed_dim)
         self.mlp = MLP(embed_dim, dropout)
-        self.ln_2 = nn.LayerNorm(embed_dim) 
+        self.ln_2 = nn.LayerNorm(embed_dim)
 
     def forward(self, x):
         a, _ = self.attn(x, x, x) 
@@ -186,7 +188,7 @@ class GeeseNetShunPI(nn.Module):
     #x_spacial: マップ情報
     #x_scalar: その他情報
 
-    def __init__(self, spacial_input_dim=4*4+7+11+1, scalar_input_dim=1, embed_dim=32, n_layers=8, attn_heads=8, dropout=0.1):
+    def __init__(self, spacial_input_dim=4*4+7+11+1, scalar_input_dim=1, embed_dim=32, n_layers=4, attn_heads=8, dropout=0.0):
         super().__init__()
         self.embed = nn.Linear(spacial_input_dim, embed_dim)
 
@@ -194,8 +196,8 @@ class GeeseNetShunPI(nn.Module):
         self.blocks = nn.ModuleList([copy.deepcopy(block) for _ in range(n_layers)])
         self.mlp = MLP(embed_dim+scalar_input_dim, dropout)
 
-        self.head_p = nn.Linear(embed_dim+scalar_input_dim, 4, bias=False)
-        self.head_v = nn.Linear(embed_dim+scalar_input_dim, 1, bias=False)
+        self.head_p = nn.Linear(embed_dim+scalar_input_dim, 4)
+        self.head_v = nn.Linear(embed_dim+scalar_input_dim, 1)
 
     def forward(self, x, _=None):
         x_spacial, x_scalar = x
@@ -208,7 +210,7 @@ class GeeseNetShunPI(nn.Module):
         h = self.mlp(h)
 
         p = F.softmax(self.head_p(h), dim=-1)
-        v = self.head_v(h)
+        v = torch.tanh(self.head_v(h))
 
         return {"policy": p, "value": v}
 
@@ -396,25 +398,23 @@ class Environment(BaseEnvironment):
 
     def reward_offensive(self):
         """
-        (長さ - 全プレイヤーの長さ平均) / 10
-        ※死亡プレイヤーは0とする
+        (長さ - 全プレイヤーの長さ平均) / 20
         """
         obs = self.obs_list[-1]
         max_steps = 0
         for p, o in enumerate(obs):
             max_steps = max(max_steps, o["reward"] / 100)
-            #print(p, o["reward"])
         len_sums = 0
         for p, o in enumerate(obs):
-            if o["reward"] / 100 == max_steps:
-                len_sums += o["reward"] % 100
+            #if o["reward"] / 100 == max_steps:
+            len_sums += o["reward"] % 100
         len_means = len_sums / 4
         rewards = {}
         for p, o in enumerate(obs):
-            if o["reward"] / 100 == max_steps:
-                rewards[p] = (o["reward"] % 100 - len_means) / 10.0
-            else:
-                rewards[p] = -len_means / 10.0
+            #if o["reward"] / 100 == max_steps:
+            rewards[p] = np.clip((o["reward"] % 100 - len_means) / 20.0, -1, 1)
+            #else:
+            #    rewards[p] = -len_means / 10.0
         
         return rewards
 
@@ -456,7 +456,7 @@ class Environment(BaseEnvironment):
             prev_obs = self.obs_list[-2][0]['observation']
             if len(obs['geese'][player]) > 0:
                 for i in range(len(self.ACTION)):
-                    if self.move_to(self.to_offset(prev_obs['geese'][player][0]), self.ACTION[i]) == self.to_offset(obs['geese'][player][0]):
+                    if self.move_to(self.to_offset(obs['geese'][player][0]), self.ACTION[i]) == self.to_offset(prev_obs['geese'][player][0]):
                         ret.remove(i)
                         break
         return ret
@@ -494,12 +494,12 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetShunPI
-        #return GeeseNet
+        #return GeeseNetShunPI
+        return GeeseNet
 
     def to_offset(self, x):
-        row = self.CENTER_ROW - x // self.NUM_COL
-        col = self.CENTER_COL - x % self.NUM_COL
+        row = (7 - x // self.NUM_COL) % 7
+        col = (11 - x % self.NUM_COL) % 11
         return row, col
 
     def to_row(self, offset, x):
@@ -546,7 +546,7 @@ class Environment(BaseEnvironment):
         # x = self.observation_normal(player)
         # x = self.observation_centering_head(player)
         # x = self.observation_2step(player)
-        x = self.observation_shunpi(player)
+        x = self.observation_shunpi2(player)
         return x
 
     def observation_normal(self, player=None):
@@ -693,24 +693,29 @@ class Environment(BaseEnvironment):
 
         x_spacial = np.zeros((7, 11, 4*4 + 7 + 11 + 1), dtype=np.float32)
         x_scalar = np.zeros(1, dtype=np.float32)
+        test = np.zeros((7, 11), dtype=np.int32)
         obs = self.obs_list[-1][0]['observation']
 
         player_goose_head = obs['geese'][player][0]
         o_row, o_col = self.to_offset(player_goose_head)
 
         for p, geese in enumerate(obs['geese']):
+            pid = (p - player + self.NUM_AGENTS) % self.NUM_AGENTS
             # head position
             for pos in geese[:1]:
-                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*0 + (p - player) % 4] = 1
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*0 + pid] = 1
+                test[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 4*0 + pid
             # tip position
             for pos in geese[-1:]:
-                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*1 + (p - player) % 4] = 1
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*1 + pid] = 1
+                test[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 4*1 + pid
             # whole position(head寄り、tail寄り)
             for i in range(len(geese)):
                 if i == 0 or i == len(geese) - 1:
                     continue
-                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*2 + (p - player) % 4] = (len(geese) - 1 - i) / len(geese)
-                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*3 + (p - player) % 4] = i / len(geese)
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*2 + pid] = (len(geese) - 1 - i) / len(geese)
+                x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*3 + pid] = i / len(geese)
+                test[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 4*2 + pid
 
         # x座標(0~6)
         for pos in range(77):
@@ -723,6 +728,7 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs['food']:
             x_spacial[self.to_row(o_row, pos), self.to_col(o_col, pos), 4*4 + 7 + 11] = 1
+            test[self.to_row(o_row, pos), self.to_col(o_col, pos)] = 4*4 + 7 + 11
 
         #(step数 - 100) / 100
         x_scalar[0] = (len(self.obs_list) - 100) / 100
