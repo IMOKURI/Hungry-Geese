@@ -370,9 +370,9 @@ class Environment(BaseEnvironment):
         return y
 
     def reward(self):
-        # x = self.reward_default()
+        x = self.reward_default()
         # x = self.reward_offensive()
-        x = self.reward_defensive()
+        # x = self.reward_defensive()
         return x
 
     def reward_default(self):
@@ -475,7 +475,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return MultiGeeseNet
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
