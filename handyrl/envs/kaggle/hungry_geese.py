@@ -697,7 +697,7 @@ class Environment(BaseEnvironment):
             for pos in geese[-1:]:
                 b[4 + pid, pos] = 1
 
-                if danger_rate > 0.5:
+                if danger_rate > 0.5 and pid == 0:
                     b[16, pos] = 1
 
             # whole position
