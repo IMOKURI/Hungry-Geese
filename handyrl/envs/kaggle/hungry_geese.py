@@ -324,7 +324,7 @@ class Environment(BaseEnvironment):
         return True
 
     def head_tail_bonus(self, danger_rate=1.0):
-        bonus_rate = 300
+        bonus_rate = 100
 
         bonus = {i: 0 for i in range(4)}
 
@@ -370,9 +370,9 @@ class Environment(BaseEnvironment):
         return y
 
     def reward(self):
-        x = self.reward_default()
+        # x = self.reward_default()
         # x = self.reward_offensive()
-        # x = self.reward_defensive()
+        x = self.reward_defensive()
         return x
 
     def reward_default(self):
@@ -409,7 +409,7 @@ class Environment(BaseEnvironment):
 
     def reward_defensive(self):
         """
-        default reward + head tail 報酬(300)  # + death数 * 200
+        default reward + head tail 報酬(100)  # + death数 * 200
         """
         obs = self.obs_list[-1]
         ht_bonus = self.head_tail_bonus()
@@ -475,7 +475,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return MultiGeeseNet
+        return GeeseNet
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -523,9 +523,10 @@ class Environment(BaseEnvironment):
         return movable
 
     def observation(self, player=None):
-        x = self.observation_normal(player)
+        # x = self.observation_normal(player)
         # x = self.observation_centering_head(player)
         # x = self.observation_2step(player)
+        x = self.observation_tip_as_food(player)
         return x
 
     def observation_normal(self, player=None):
@@ -663,6 +664,58 @@ class Environment(BaseEnvironment):
 
         # movable position
         b[26] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
+
+        return b.reshape(-1, 7, 11)
+
+    def observation_tip_as_food(self, player=None):
+        if player is None:
+            player = 0
+
+        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
+        obs_all = self.obs_list[-1]
+        obs = obs_all[0]['observation']
+
+        # Danger Rate
+        num_geese = len([g for g in obs_all if g["status"] == "ACTIVE"])
+        num_filled_cell = len([pos for geese in obs["geese"] for pos in geese])
+        if num_geese == 2:
+            danger_rate = min(1.0, num_filled_cell ** 2 / 3500)
+        elif num_geese == 3:
+            danger_rate = min(1.0, num_filled_cell ** 2 / 2500)
+        else:
+            danger_rate = min(1.0, num_filled_cell ** 2 / 2000)
+
+        # Geese
+        for p, geese in enumerate(obs['geese']):
+            pid = (p - player) % self.NUM_AGENTS
+
+            # head position
+            for pos in geese[:1]:
+                b[0 + pid, pos] = 1
+
+            # tip position
+            for pos in geese[-1:]:
+                b[4 + pid, pos] = 1
+
+                if danger_rate > 0.5:
+                    b[16, pos] = 1
+
+            # whole position
+            for pos in geese:
+                b[8 + pid, pos] = 1
+
+        # previous head position
+        if len(self.obs_list) > 1:
+            obs_prev = self.obs_list[-2][0]['observation']
+            for p, geese in enumerate(obs_prev['geese']):
+                pid = (p - player) % self.NUM_AGENTS
+
+                for pos in geese[:1]:
+                    b[12 + pid, pos] = 1
+
+        # food
+        for pos in obs['food']:
+            b[16, pos] = 1
 
         return b.reshape(-1, 7, 11)
 
