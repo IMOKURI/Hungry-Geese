@@ -697,9 +697,6 @@ class Environment(BaseEnvironment):
             for pos in geese[-1:]:
                 b[4 + pid, pos] = 1
 
-                if danger_rate > 0.5 and pid == 0:
-                    b[16, pos] = 1
-
             # whole position
             for pos in geese:
                 b[8 + pid, pos] = 1
@@ -714,8 +711,9 @@ class Environment(BaseEnvironment):
                     b[12 + pid, pos] = 1
 
         # food
-        for pos in obs['food']:
-            b[16, pos] = 1
+        if danger_rate < 0.5:
+            for pos in obs['food']:
+                b[16, pos] = 1
 
         return b.reshape(-1, 7, 11)
 
