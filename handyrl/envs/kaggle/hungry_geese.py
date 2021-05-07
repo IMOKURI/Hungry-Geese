@@ -206,61 +206,6 @@ class MultiGeeseNet(nn.Module):
         return {"policy": p, "value": v}
 
 
-class GeeseNetKURI(nn.Module):
-    def __init__(self):
-        super().__init__()
-        filters = 16
-        layers = 12
-
-        self.conv0 = TorusConv2d(9, filters, (3, 3), True)
-
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
-
-        self.head_p1 = nn.Linear(filters + 77, filters * 2, bias=False)
-        self.head_p2 = nn.Linear(filters * 2, 4, bias=False)
-        self.head_v1 = nn.Linear(filters + 77, filters * 2, bias=False)
-        self.head_v2 = nn.Linear(filters * 2, 1, bias=False)
-
-    def forward(self, x, _=None):
-        p1 = x[:, :16:4]  # size: (bs, 4, 7, 11)
-        p2 = x[:, 1:16:4]
-        p3 = x[:, 2:16:4]
-        p4 = x[:, 3:16:4]
-        food = x[:, 15:16]
-
-        vs_p2 = torch.cat([p1, p2, food], 1)
-        vs_p3 = torch.cat([p1, p3, food], 1)
-        vs_p4 = torch.cat([p1, p4, food], 1)
-
-        h_p2 = F.relu_(self.conv0(vs_p2))
-        h_p3 = F.relu_(self.conv0(vs_p3))
-        h_p4 = F.relu_(self.conv0(vs_p4))
-
-        for block in self.blocks:
-            h_p2 = F.relu_(h_p2 + block(h_p2))
-            h_p3 = F.relu_(h_p3 + block(h_p3))
-            h_p4 = F.relu_(h_p4 + block(h_p4))
-
-        h = torch.mean(torch.stack([h_p2, h_p3, h_p4]), dim=0)
-
-        h_p = F.relu_(self.conv_p(h))
-        h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_avg_p = h_p.view(h_p.size(0), h_p.size(1), -1).mean(1)
-        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_avg_p], 1)))
-        p = self.head_p2(h_p)
-
-        h_v = F.relu_(self.conv_v(h))
-        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(1)
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
-        v = torch.tanh(self.head_v2(h_v))
-
-        return {"policy": p, "value": v}
-
-
 class Environment(BaseEnvironment):
     ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
     NUM_AGENTS = 4
@@ -425,9 +370,9 @@ class Environment(BaseEnvironment):
         return y
 
     def reward(self):
-        x = self.reward_default()
+        # x = self.reward_default()
         # x = self.reward_offensive()
-        # x = self.reward_defensive()
+        x = self.reward_defensive()
         return x
 
     def reward_default(self):
@@ -530,7 +475,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetKURI
+        return GeeseNet
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
