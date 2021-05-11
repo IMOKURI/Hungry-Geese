@@ -864,7 +864,7 @@ class Environment(BaseEnvironment):
         obs = obs_all[0]['observation']
 
         num_step = obs["step"]  # 0-198
-        b[0, 0] = num_step // 20 / 10
+        b[0, 0] = num_step / 198
 
         return b.reshape(1, 7, 11)
 
