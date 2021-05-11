@@ -563,7 +563,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNet
+        return GeeseNetHideFood
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -612,10 +612,10 @@ class Environment(BaseEnvironment):
 
     def observation(self, player=None):
         obses = []
-        # obses.append(self.observation_normal(player))
+        obses.append(self.observation_normal(player))
         # obses.append(self.observation_centering_head(player))
         # obses.append(self.observation_2step(player))
-        obses.append(self.observation_tip_as_food(player))
+        # obses.append(self.observation_tip_as_food(player))
         # obses.append(self.observation_num_turn_to_free(player))
         x = np.concatenate(obses)
         return x
