@@ -206,32 +206,37 @@ class MultiGeeseNet(nn.Module):
         return {"policy": p, "value": v}
 
 
-class GeeseNetHideFood(nn.Module):
+class GeeseNetKuri(nn.Module):
     def __init__(self):
         super().__init__()
+        channel = 18
         layers, filters = 12, 32
 
-        self.hide_food = True
+        self.hide_food = False
 
-        self.conv_dr1 = TorusConv2d(17, 8, (3, 3), True)
+        self.conv_dr1 = TorusConv2d(channel, 8, (3, 3), True)
         self.conv_dr2 = TorusConv2d(8, 1, (3, 3), True)
-        self.head_dr1 = nn.Linear(77, 1, bias=False)
+        self.head_dr1 = nn.Linear(77 + 1, 1, bias=False)
 
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(channel, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
+        self.head_p1 = nn.Linear(filters + 1, filters // 2, bias=False)
+        self.head_p2 = nn.Linear(filters // 2, 4, bias=False)
+        self.head_v1 = nn.Linear(filters * 2 + 1, filters, bias=False)
         self.head_v2 = nn.Linear(filters, 1, bias=False)
 
     def forward(self, x, _=None):
+        x = x[:, :-1]
+        num_step = x[:, -1, 0, 0].view(x.size(0), 1)
+
         if self.hide_food:
             h_dr = F.relu_(self.conv_dr1(x))
             h_dr = F.relu_(self.conv_dr2(h_dr)).view(x.size(0), -1)
-            danger_rate = torch.sigmoid(self.head_dr1(h_dr)).view(x.size(0), 1, 1, 1)
+            danger_rate = torch.sigmoid(self.head_dr1(torch.cat([h_dr, num_step], 1))).view(x.size(0), 1, 1, 1)
 
             x_hide_food = torch.clone(x)
             x_hide_food[:, 16] = torch.zeros(7, 11)
@@ -244,13 +249,14 @@ class GeeseNetHideFood(nn.Module):
 
         h_p = F.relu_(self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        p = self.head_p(h_head_p)
+        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, num_step], 1)))
+        p = self.head_p2(h_p)
 
         h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
+        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v, num_step], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -563,7 +569,7 @@ class Environment(BaseEnvironment):
         return self.ACTION.index(action)
 
     def net(self):
-        return GeeseNetHideFood
+        return GeeseNetKuri
 
     def to_offset(self, x):
         row = self.CENTER_ROW - x // self.NUM_COL
@@ -616,7 +622,8 @@ class Environment(BaseEnvironment):
         # obses.append(self.observation_centering_head(player))
         # obses.append(self.observation_2step(player))
         # obses.append(self.observation_tip_as_food(player))
-        # obses.append(self.observation_num_turn_to_free(player))
+        obses.append(self.observation_num_turn_to_free(player))
+        obses.append(self.observation_num_step(player))
         x = np.concatenate(obses)
         return x
 
@@ -845,6 +852,19 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs["food"]:
             b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = -1
+
+        return b.reshape(1, 7, 11)
+
+    def observation_num_step(self, player=None):
+        if player is None:
+            player = 0
+
+        b = np.zeros((7, 11), dtype=np.float32)
+        obs_all = self.obs_list[-1]
+        obs = obs_all[0]['observation']
+
+        num_step = obs["step"]  # 0-198
+        b[0, 0] = (num_step - 99) / 99
 
         return b.reshape(1, 7, 11)
 
