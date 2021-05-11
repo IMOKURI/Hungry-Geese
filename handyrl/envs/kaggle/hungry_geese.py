@@ -850,8 +850,8 @@ class Environment(BaseEnvironment):
         b = np.clip(b, 0, 5) / 5
 
         # food
-        for pos in obs["food"]:
-            b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = -1
+        # for pos in obs["food"]:
+        #     b[self.to_row(o_row, pos), self.to_col(o_col, pos)] = -1
 
         return b.reshape(1, 7, 11)
 
@@ -864,7 +864,7 @@ class Environment(BaseEnvironment):
         obs = obs_all[0]['observation']
 
         num_step = obs["step"]  # 0-198
-        b[0, 0] = (num_step - 99) / 99
+        b[0, 0] = num_step // 20 / 10
 
         return b.reshape(1, 7, 11)
 
