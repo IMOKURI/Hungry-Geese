@@ -206,51 +206,6 @@ class MultiGeeseNet(nn.Module):
         return {"policy": p, "value": v}
 
 
-class GeeseNetAllPlayers(nn.Module):
-    def __init__(self):
-        super().__init__()
-        layers, filters = 12, 48
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
-
-        self.head_p1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
-        self.head_p2 = nn.Linear(filters * 3, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
-        self.head_v2 = nn.Linear(filters * 3, 1, bias=False)
-
-    def forward(self, x, _=None):
-        h = F.relu_(self.conv0(x))
-        for block in self.blocks:
-            h = F.relu_(h + block(h))
-
-        h_p = F.relu_(self.conv_p(h))
-        h_head_p1 = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p2 = (h_p * x[:, 1:2]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p3 = (h_p * x[:, 2:3]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p4 = (h_p * x[:, 3:4]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_avg_p1 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(-1)
-        h_avg_p2 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(1)
-
-        h_p = F.relu_(self.head_p1(torch.cat([h_head_p1, h_head_p2, h_head_p3, h_head_p4, h_avg_p1, h_avg_p2], 1)))
-        p = self.head_p2(h_p)
-
-        h_v = F.relu_(self.conv_v(h))
-        h_head_v1 = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v2 = (h_v * x[:, 1:2]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v3 = (h_v * x[:, 2:3]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v4 = (h_v * x[:, 3:4]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v1 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
-        h_avg_v2 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(1)
-
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v1, h_head_v2, h_head_v3, h_head_v4, h_avg_v1, h_avg_v2], 1)))
-        v = torch.tanh(self.head_v2(h_v))
-
-        return {"policy": p, "value": v}
-
-
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()

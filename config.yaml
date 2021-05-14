@@ -23,7 +23,7 @@ train_args:
     worker:
         num_parallel: 6
     lambda: 0.7
-    policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
+    policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
     restart_epoch: 1
