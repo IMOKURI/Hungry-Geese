@@ -218,8 +218,8 @@ class GeeseNetAlpha(nn.Module):
 
         self.head_p1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
         self.head_p2 = nn.Linear(filters * 3, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_v2 = nn.Linear(filters, 1, bias=False)
+        self.head_v1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
+        self.head_v2 = nn.Linear(filters * 3, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
