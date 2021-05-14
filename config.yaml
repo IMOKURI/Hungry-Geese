@@ -11,11 +11,11 @@ train_args:
     gamma: 0.8
     forward_steps: 16
     compress_steps: 4
-    entropy_regularization: 5.0e-3
+    entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.1
-    update_episodes: 500
-    batch_size: 250
-    minimum_episodes: 10000
+    update_episodes: 1000
+    batch_size: 400
+    minimum_episodes: 100000
     maximum_episodes: 500000
     epochs: -1
     num_batchers: 8
