@@ -17,6 +17,9 @@ submit: ## Push submission base kernel.
 submit-ensemble: ## Push submission ensemble kernel.
 	@$(MAKE) -C ds/submit/ ensemble_
 
+submit-alpha: ## Push submission alpha kernel.
+	@$(MAKE) -C ds/submit/ alpha_
+
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
 		{printf "\033[38;2;98;209;150m%-20s\033[0m %s\n", $$1, $$2}' \
