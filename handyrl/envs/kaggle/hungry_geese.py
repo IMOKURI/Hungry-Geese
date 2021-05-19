@@ -414,11 +414,11 @@ class Environment(BaseEnvironment):
         y = ((x[0] + actions[a][0]) % 7, (x[1] + actions[a][1]) % 11)
         return y
 
-    def reward(self):
-        # x = self.reward_default()
-        # x = self.reward_offensive()
-        x = self.reward_defensive()
-        return x
+    # def reward(self):
+    #     x = self.reward_default()
+    #     # x = self.reward_offensive()
+    #     # x = self.reward_defensive()
+    #     return x
 
     def reward_default(self):
         """
