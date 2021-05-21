@@ -11,14 +11,11 @@ model: ## Push model.
 eval: ## Push evaluation kernel.
 	@$(MAKE) -C ds/eval/ push
 
-submit: ## Push submission base kernel.
-	@$(MAKE) -C ds/submit/ base_
-
-submit-ensemble: ## Push submission ensemble kernel.
-	@$(MAKE) -C ds/submit/ ensemble_
-
-submit-alpha: ## Push submission alpha kernel.
+submit: ## Push submission alpha kernel.
 	@$(MAKE) -C ds/submit/ alpha_
+
+submit-dual: ## Push submission dual kernel.
+	@$(MAKE) -C ds/submit/ dual_
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \

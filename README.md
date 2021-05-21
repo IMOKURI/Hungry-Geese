@@ -83,5 +83,5 @@ https://www.kaggle.com/c/hungry-geese
 
 - 学習済みモデルの upload: `make model`
 - ソースコードの upload: `make source`
-- [エージェント Notebook](./ds/submit/alpha/alpha-geese.ipynb)の submit: `make submit-alpha`
+- [エージェント Notebook](./ds/submit/alpha/alpha-geese.ipynb)の submit: `make submit`
 - シュミレーション: `make eval`
