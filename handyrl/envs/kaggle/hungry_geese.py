@@ -209,7 +209,7 @@ class MultiGeeseNet(nn.Module):
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 32
+        layers, filters = 12, 96
         self.conv0 = TorusConv2d(17, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
