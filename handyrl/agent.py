@@ -35,6 +35,26 @@ class RuleBasedAgentSmartGeese(RandomAgent):
         return env.rule_based_action_smart_geese(player)
 
 
+class RuleBasedAgentAlpha4Aug(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_alpha_64_409_4aug(player)
+
+
+class RuleBasedAgentAlphaCpuct1(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_alpha_64_409_cpuct_1(player)
+
+
+class RuleBasedAgentAlphaCpuct2(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_alpha_64_409_cpuct_2(player)
+
+
+class RuleBasedAgentAlphaCs(RandomAgent):
+    def action(self, env, player, show=False):
+        return env.rule_based_action_alpha_64_409_cs(player)
+
+
 def view(env, player=None):
     if hasattr(env, 'view'):
         env.view(player=player)

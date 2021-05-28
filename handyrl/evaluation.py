@@ -3,15 +3,17 @@
 
 # evaluation of policies or planning algorithms
 
+import multiprocessing as mp
 import random
 import time
-import multiprocessing as mp
 
-from .environment import prepare_env, make_env
-from .connection import send_recv, accept_socket_connections, connect_socket_connection
-from .agent import RandomAgent, RuleBasedAgent, Agent, EnsembleAgent, SoftAgent, RuleBasedAgentSmartGeese
-from .agent import view, view_transition
-
+from .agent import (Agent, EnsembleAgent, RandomAgent, RuleBasedAgent,
+                    RuleBasedAgentAlpha4Aug, RuleBasedAgentAlphaCpuct1,
+                    RuleBasedAgentAlphaCpuct2, RuleBasedAgentAlphaCs,
+                    RuleBasedAgentSmartGeese, SoftAgent, view, view_transition)
+from .connection import (accept_socket_connections, connect_socket_connection,
+                         send_recv)
+from .environment import make_env, prepare_env
 
 network_match_port = 9876
 
@@ -217,7 +219,8 @@ def evaluate_mp(env, agents, critic, env_args, args_patterns, num_process, num_g
         print('---agent %d---' % p)
         for pat_idx, results in r_map.items():
             print(pat_idx, {k: results[k] for k in sorted(results.keys(), reverse=True)}, wp_func(results))
-        print('total', {k: total_results[p][k] for k in sorted(total_results[p].keys(), reverse=True)}, wp_func(total_results[p]))
+        print('total', {k: total_results[p][k] for k in sorted(
+            total_results[p].keys(), reverse=True)}, wp_func(total_results[p]))
 
 
 def network_match_acception(n, env_args, num_agents, port):
@@ -267,7 +270,7 @@ def eval_main(args, argv):
     num_games = int(argv[1]) if len(argv) >= 2 else 100
     num_process = int(argv[2]) if len(argv) >= 3 else 1
 
-    agent1 = Agent(get_model(env, model_path))
+    # agent1 = Agent(get_model(env, model_path))
     critic = None
 
     print('%d process, %d games' % (num_process, num_games))
@@ -277,10 +280,11 @@ def eval_main(args, argv):
 
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
-        agent1,
-        RuleBasedAgentSmartGeese(),
-        RuleBasedAgentSmartGeese(),
-        RuleBasedAgentSmartGeese(),
+        # agent1,
+        RuleBasedAgentAlpha4Aug(),
+        RuleBasedAgentAlphaCpuct1(),
+        RuleBasedAgentAlphaCpuct2(),
+        RuleBasedAgentAlphaCs(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
