@@ -7,9 +7,7 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
-import math
 import random
-from collections import defaultdict, deque
 
 import numpy as np
 import torch
@@ -19,25 +17,6 @@ import torch.nn.functional as F
 from kaggle_environments import make
 
 from ...environment import BaseEnvironment
-
-
-class Dense(nn.Module):
-    def __init__(self, units0, units1, bnunits=0, bias=True):
-        super().__init__()
-        if bnunits > 0:
-            bias = False
-        self.dense = nn.Linear(units0, units1, bias=bias)
-        self.bnunits = bnunits
-        self.bn = nn.BatchNorm1d(bnunits) if bnunits > 0 else None
-
-    def forward(self, x):
-        h = self.dense(x)
-        if self.bn is not None:
-            size = h.size()
-            h = h.view(-1, self.bnunits)
-            h = self.bn(h)
-            h = h.view(*size)
-        return h
 
 
 class TorusConv2d(nn.Module):
@@ -65,65 +44,6 @@ class Conv2d(nn.Module):
         h = self.conv(x)
         h = self.bn(h) if self.bn is not None else h
         return h
-
-
-class ChannelSELayer(nn.Module):
-    def __init__(self, channel, reduction=8):
-        super().__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
-
-
-# https://github.com/Kaixhin/Rainbow/blob/master/model.py
-# Factorised NoisyLinear layer with bias
-class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, std_init=0.5):
-        super(NoisyLinear, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.std_init = std_init
-        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
-        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
-        self.register_buffer('weight_epsilon', torch.empty(out_features, in_features))
-        self.bias_mu = nn.Parameter(torch.empty(out_features))
-        self.bias_sigma = nn.Parameter(torch.empty(out_features))
-        self.register_buffer('bias_epsilon', torch.empty(out_features))
-        self.reset_parameters()
-        self.reset_noise()
-
-    def reset_parameters(self):
-        mu_range = 1 / math.sqrt(self.in_features)
-        self.weight_mu.data.uniform_(-mu_range, mu_range)
-        self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
-        self.bias_mu.data.uniform_(-mu_range, mu_range)
-        self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
-
-    def _scale_noise(self, size):
-        x = torch.randn(size, device=self.weight_mu.device)
-        return x.sign().mul_(x.abs().sqrt_())
-
-    def reset_noise(self):
-        epsilon_in = self._scale_noise(self.in_features)
-        epsilon_out = self._scale_noise(self.out_features)
-        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
-        self.bias_epsilon.copy_(epsilon_out)
-
-    def forward(self, input):
-        if self.training:
-            return F.linear(input, self.weight_mu + self.weight_sigma * self.weight_epsilon, self.bias_mu + self.bias_sigma * self.bias_epsilon)
-        else:
-            return F.linear(input, self.weight_mu, self.bias_mu)
 
 
 class GeeseNet(nn.Module):
@@ -157,53 +77,6 @@ class GeeseNet(nn.Module):
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
-
-
-class MultiGeeseNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.offensive = GeeseNet()
-        self.defensive = GeeseNet()
-
-        layers, filters = 12, 32
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
-
-        self.head_p1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_p2 = nn.Linear(filters, 1, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_v2 = nn.Linear(filters, 1, bias=False)
-
-    def forward(self, x, _=None):
-        o = self.offensive(x)
-        d = self.defensive(x)
-
-        # Training danger rate
-        h = F.relu_(self.conv0(x))
-        for block in self.blocks:
-            h = F.relu_(h + block(h))
-
-        h_p = F.relu_(self.conv_p(h))
-        h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_avg_p = h_p.view(h_p.size(0), h_p.size(1), -1).mean(-1)
-
-        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_avg_p], 1)))
-        drp = torch.sigmoid(self.head_p2(h_p))
-
-        h_v = F.relu_(self.conv_v(h))
-        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
-
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
-        drv = torch.sigmoid(self.head_v2(h_v))
-
-        p = drp * o["policy"] + (1 - drp) * d["policy"]
-        v = drv * o["value"] + (1 - drv) * d["value"]
-
-        return {"policy": p, "value": v}
 
 
 class GeeseNetAlpha(nn.Module):
@@ -368,107 +241,6 @@ class Environment(BaseEnvironment):
                 return False
         return True
 
-    def head_tail_bonus(self, danger_rate=1.0):
-        bonus_rate = 50
-
-        bonus = {i: 0 for i in range(4)}
-
-        if danger_rate < 0.5:
-            return bonus
-
-        try:
-            prev_obs = self.obs_list[-2]
-        except IndexError:
-            return bonus
-
-        tails = [goose[-1] for goose in prev_obs[0]["observation"]["geese"] if len(goose) > 0]
-
-        obs = self.obs_list[-1][0]["observation"]["geese"]
-        for i, goose in enumerate(obs):
-            if len(goose) > 0 and goose[0] in tails:
-                bonus[i] = bonus_rate * danger_rate
-
-        return bonus
-
-    def death_bonus(self, danger_rate=1.0):
-        death_rate = 200
-
-        try:
-            prev_obs = self.obs_list[-2]
-        except IndexError:
-            prev_obs = None
-        obs = self.obs_list[-1]
-
-        num_alive = len([o for o in obs if o["status"] == "ACTIVE"])
-        prev_num_alive = len([o for o in prev_obs if o["status"] == "ACTIVE"]) if prev_obs is not None else num_alive
-
-        return (prev_num_alive - num_alive) * death_rate * danger_rate
-
-    def move_to(self, x, a):
-        actions = {
-            "NORTH": (-1, 0),
-            "SOUTH": (1, 0),
-            "WEST": (0, -1),
-            "EAST": (0, 1),
-        }
-        y = ((x[0] + actions[a][0]) % 7, (x[1] + actions[a][1]) % 11)
-        return y
-
-    # def reward(self):
-    #     x = self.reward_default()
-    #     # x = self.reward_offensive()
-    #     # x = self.reward_defensive()
-    #     return x
-
-    def reward_default(self):
-        """
-        もともと以下の値となっている
-        reward = steps survived * (configuration.max_length + 1) + goose length
-        """
-        obs = self.obs_list[-1]
-        rewards = {}
-        for p, o in enumerate(obs):
-            rewards[p] = o["reward"]
-
-        return rewards
-
-    def reward_offensive(self):
-        """
-        長さ * 100 + 行動可能なマス数
-        """
-        obs = self.obs_list[-1]
-        geese = obs[0]["observation"]["geese"]
-
-        rewards = {}
-        for p, o in enumerate(obs):
-            length_reward = o["reward"] % 100 * 100
-
-            if o["status"] == "ACTIVE":
-                head = (self.to_row(0, geese[p][0]), self.to_col(0, geese[p][0]))
-                field_reward = self.bfs(self.field, self.move_to(head, o["action"])).sum()
-                rewards[p] = length_reward + field_reward
-            else:
-                rewards[p] = length_reward
-
-        return rewards
-
-    def reward_defensive(self):
-        """
-        default reward + head tail 報酬(50)  # + death数 * 200
-        """
-        obs = self.obs_list[-1]
-        ht_bonus = self.head_tail_bonus()
-        d_bonus = self.death_bonus()
-
-        rewards = {}
-        for p, o in enumerate(obs):
-            if o["status"] == "ACTIVE":
-                rewards[p] = o["reward"] + ht_bonus[p]  # + d_bonus
-            else:
-                rewards[p] = o["reward"]
-
-        return rewards
-
     def outcome(self):
         # return terminal outcomes
         # 1st: 1.00 2nd: 0.33 3rd: -0.33 4th: -1.00
@@ -541,38 +313,10 @@ class Environment(BaseEnvironment):
             (x[0], (x[1] + 1) % 11),
         ]
 
-    def empty_around_head(self, field, x):
-        return [e for e in self.around(x) if field[e[0], e[1]] == 0]
-
-    def food_around_head(self, head, food):
-        food_ = [
-            (self.to_row(0, f), self.to_col(0, f))
-            for f in food
-        ]
-        for a in self.around(head):
-            if a in food_:
-                return True
-        return False
-
-    def bfs(self, field, head):
-        q = deque([head])
-        movable = np.zeros([7, 11])
-        searched = defaultdict(bool)
-        while len(q) != 0:
-            v = q.popleft()
-            movable[v] = 1
-            searched[v] = True
-            edges = [a for a in self.empty_around_head(field, v) if not searched[a]]
-            for edge in edges:
-                q.append(edge)
-        return movable
-
     def observation(self, player=None):
         obses = []
         obses.append(self.observation_normal(player))
         # obses.append(self.observation_centering_head(player))
-        # obses.append(self.observation_tip_as_food(player))
-        # obses.append(self.observation_num_step(player))
         x = np.concatenate(obses)
         return x
 
@@ -650,69 +394,6 @@ class Environment(BaseEnvironment):
             b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
         return b
-
-    def observation_tip_as_food(self, player=None):
-        if player is None:
-            player = 0
-
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
-        obs_all = self.obs_list[-1]
-        obs = obs_all[0]['observation']
-
-        # Danger Rate
-        num_geese = len([g for g in obs_all if g["status"] == "ACTIVE"])
-        num_filled_cell = len([pos for geese in obs["geese"] for pos in geese])
-        if num_geese == 2:
-            danger_rate = min(1.0, num_filled_cell ** 2 / 3500)
-        elif num_geese == 3:
-            danger_rate = min(1.0, num_filled_cell ** 2 / 2500)
-        else:
-            danger_rate = min(1.0, num_filled_cell ** 2 / 2000)
-
-        # Geese
-        for p, geese in enumerate(obs['geese']):
-            pid = (p - player) % self.NUM_AGENTS
-
-            # head position
-            for pos in geese[:1]:
-                b[0 + pid, pos] = 1
-
-            # tip position
-            for pos in geese[-1:]:
-                b[4 + pid, pos] = 1
-
-            # whole position
-            for pos in geese:
-                b[8 + pid, pos] = 1
-
-        # previous head position
-        if len(self.obs_list) > 1:
-            obs_prev = self.obs_list[-2][0]['observation']
-            for p, geese in enumerate(obs_prev['geese']):
-                pid = (p - player) % self.NUM_AGENTS
-
-                for pos in geese[:1]:
-                    b[12 + pid, pos] = 1
-
-        # food
-        if danger_rate < 0.5:
-            for pos in obs['food']:
-                b[16, pos] = 1
-
-        return b.reshape(-1, 7, 11)
-
-    def observation_num_step(self, player=None):
-        if player is None:
-            player = 0
-
-        b = np.zeros((7, 11), dtype=np.float32)
-        obs_all = self.obs_list[-1]
-        obs = obs_all[0]['observation']
-
-        num_step = obs["step"]  # 0-198
-        b[0, 0] = num_step / 198
-
-        return b.reshape(1, 7, 11)
 
 
 if __name__ == '__main__':
