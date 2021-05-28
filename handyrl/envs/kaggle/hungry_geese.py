@@ -8,6 +8,7 @@
 
 import importlib
 import random
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -83,7 +84,7 @@ class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 64
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(28, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -131,6 +132,15 @@ class Environment(BaseEnvironment):
     NUM_COL = 11
     CENTER_ROW = NUM_ROW // 2
     CENTER_COL = NUM_COL // 2
+
+    next_position_map = {}
+    for pos in range(77):
+        position = []
+        position.append((11 * (1 + pos // 11) + pos % 11) % 77)
+        position.append((11 * (-1 + pos // 11) + pos % 11) % 77)
+        position.append((11 * (pos // 11) + (pos + 1) % 11) % 77)
+        position.append((11 * (pos // 11) + (pos - 1) % 11) % 77)
+        next_position_map[pos] = set(position)
 
     def __init__(self, args={}):
         super().__init__()
@@ -317,6 +327,10 @@ class Environment(BaseEnvironment):
         obses = []
         obses.append(self.observation_normal(player))
         # obses.append(self.observation_centering_head(player))
+        obses.append(self.observation_reverse_pos(player))
+        obses.append(self.observation_disappear_next(player))
+        obses.append(self.observation_num_step(player))
+        obses.append(self.observation_length(player))
         x = np.concatenate(obses)
         return x
 
@@ -325,7 +339,6 @@ class Environment(BaseEnvironment):
             player = 0
 
         b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
-        # head = defaultdict(tuple)
         obs = self.obs_list[-1][0]['observation']
 
         for p, geese in enumerate(obs['geese']):
@@ -334,7 +347,6 @@ class Environment(BaseEnvironment):
             # head position
             for pos in geese[:1]:
                 b[0 + pid, pos] = 1
-                # head[pid] = (self.to_row(0, pos), self.to_col(0, pos))
             # tip position
             for pos in geese[-1:]:
                 b[4 + pid, pos] = 1
@@ -354,10 +366,6 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs['food']:
             b[16, pos] = 1
-
-        # movable position
-        # self.field = b[8:13].sum(0).reshape(7, 11)
-        # b[17] = self.bfs(b[8:13].sum(0).reshape(7, 11), head[0]).reshape(-1)
 
         return b.reshape(-1, 7, 11)
 
@@ -392,6 +400,108 @@ class Environment(BaseEnvironment):
         # food
         for pos in obs['food']:
             b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+
+        return b
+
+    def observation_reverse_pos(self, player=None):
+        """
+        尻尾から順番に 1, 0.9, 0.8, ... という並び
+        """
+        if player is None:
+            player = 0
+
+        b = np.zeros((self.NUM_AGENTS, 7 * 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]['observation']
+
+        for p, geese in enumerate(obs['geese']):
+            pid = (p - player) % self.NUM_AGENTS
+
+            # whole position reverse
+            for nr, pos in enumerate(geese[::-1]):
+                b[pid, pos] = 1 - nr * 0.1
+
+        return b.reshape(-1, 7, 11)
+
+    def observation_disappear_next(self, player=None):
+        """
+        次になくなる場所: 1
+        次になくなる可能性のある場所: 0.5
+        """
+        if player is None:
+            player = 0
+
+        b = np.zeros((self.NUM_AGENTS, 7 * 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]['observation']
+        step = obs["step"]
+
+        # foodを食べる可能性があるか。
+        eat_food_possibility = defaultdict(int)
+        for p, geese in enumerate(obs["geese"]):
+            for pos in geese[:1]:
+                if not self.next_position_map[pos].isdisjoint(obs["food"]):
+                    eat_food_possibility[p] = 1
+
+        if (step % 40) == 39:  # 1つ短くなる
+            for p, geese in enumerate(obs['geese']):
+                pid = (p - player) % self.NUM_AGENTS
+
+                if eat_food_possibility[p]:  # 尻尾が1、尻尾の１つ前0.5
+                    for pos in geese[-1:]:
+                        b[pid, pos] = 1
+                    for pos in geese[-2:-1]:
+                        b[pid, pos] = 0.5
+                else:  # 食べる可能性なし -> 尻尾が1, 尻尾の1つ前1
+                    for pos in geese[-2:]:
+                        b[pid, pos] = 1
+
+        else:  # 1つ短くならない
+            for p, geese in enumerate(obs["geese"]):
+                pid = (p - player) % self.NUM_AGENTS
+
+                if eat_food_possibility[p]:  # 食べる可能性があり -> 尻尾を0.5
+                    for pos in geese[-1:]:
+                        b[pid, pos] = 0.5
+                else:  # 食べる可能性なし # 尻尾を1
+                    for pos in geese[-1:]:
+                        b[pid, pos] = 1
+
+        return b.reshape(-1, 7, 11)
+
+    def observation_num_step(self, player=None):
+        """
+        step0: 0, step199: 1
+        step0: 0, step39 + 40n: 1
+        """
+        if player is None:
+            player = 0
+
+        b = np.zeros((1, 7, 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]['observation']
+        step = obs["step"]
+
+        b[:, :, :5] = (step % 200) / 199
+        b[:, :, 5:] = (step % 40) / 39
+
+        return b
+
+    def observation_length(self, player=None):
+        if player is None:
+            player = 0
+
+        b = np.zeros((2, 7, 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]['observation']
+
+        my_length = len(obs['geese'][player])
+        opposite1_length = len(obs['geese'][(player + 1) % self.NUM_AGENTS])
+        opposite2_length = len(obs['geese'][(player + 2) % self.NUM_AGENTS])
+        opposite3_length = len(obs['geese'][(player + 3) % self.NUM_AGENTS])
+
+        b[0] = my_length / 10
+        max_opposite_length = max(opposite1_length, opposite2_length, opposite3_length)
+        b[1, :, 0:2] = (my_length - max_opposite_length) / 10
+        b[1, :, 2:5] = (my_length - opposite1_length) / 10
+        b[1, :, 5:8] = (my_length - opposite2_length) / 10
+        b[1, :, 8:11] = (my_length - opposite3_length) / 10
 
         return b
 
