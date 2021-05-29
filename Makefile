@@ -8,6 +8,9 @@ source: ## Push source.
 model: ## Push model.
 	@$(MAKE) -C ds/models/ push
 
+agent: ## Push agent.
+	@$(MAKE) -C handyrl/envs/kaggle/geese/ push
+
 eval: ## Push evaluation kernel.
 	@$(MAKE) -C ds/eval/ push
 

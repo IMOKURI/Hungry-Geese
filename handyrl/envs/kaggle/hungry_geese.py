@@ -301,10 +301,10 @@ class Environment(BaseEnvironment):
         action = agent_module.agent(Observation(obs), None)
         return self.ACTION.index(action)
 
-    def rule_based_action_alpha_64_409_4aug(self, player, goose=None):
+    def rule_based_action_alpha_4aug(self, player, goose=None):
         from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
         if goose is None:
-            agent_path = 'handyrl.envs.kaggle.geese.alpha_64_409_4aug'
+            agent_path = 'handyrl.envs.kaggle.geese.alpha_4aug'
         else:
             agent_path = 'handyrl.envs.kaggle.geese.' + goose
         agent_module = importlib.import_module(agent_path)
@@ -315,10 +315,10 @@ class Environment(BaseEnvironment):
         action = agent_module.agent(Observation(obs), None)
         return self.ACTION.index(action)
 
-    def rule_based_action_alpha_64_409_cpuct_1(self, player, goose=None):
+    def rule_based_action_alpha_cpuct_1(self, player, goose=None):
         from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
         if goose is None:
-            agent_path = 'handyrl.envs.kaggle.geese.alpha_64_409_cpuct_1'
+            agent_path = 'handyrl.envs.kaggle.geese.alpha_cpuct_1'
         else:
             agent_path = 'handyrl.envs.kaggle.geese.' + goose
         agent_module = importlib.import_module(agent_path)
@@ -329,10 +329,10 @@ class Environment(BaseEnvironment):
         action = agent_module.alphageese_agent(Observation(obs), None)
         return self.ACTION.index(action)
 
-    def rule_based_action_alpha_64_409_cpuct_2(self, player, goose=None):
+    def rule_based_action_alpha_cpuct_2(self, player, goose=None):
         from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
         if goose is None:
-            agent_path = 'handyrl.envs.kaggle.geese.alpha_64_409_cpuct_2'
+            agent_path = 'handyrl.envs.kaggle.geese.alpha_cpuct_2'
         else:
             agent_path = 'handyrl.envs.kaggle.geese.' + goose
         agent_module = importlib.import_module(agent_path)
@@ -343,10 +343,10 @@ class Environment(BaseEnvironment):
         action = agent_module.alphageese_agent(Observation(obs), None)
         return self.ACTION.index(action)
 
-    def rule_based_action_alpha_64_409_cs(self, player, goose=None):
+    def rule_based_action_alpha_cs(self, player, goose=None):
         from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
         if goose is None:
-            agent_path = 'handyrl.envs.kaggle.geese.alpha_64_409_cs'
+            agent_path = 'handyrl.envs.kaggle.geese.alpha_cs'
         else:
             agent_path = 'handyrl.envs.kaggle.geese.' + goose
         agent_module = importlib.import_module(agent_path)
