@@ -8,8 +8,6 @@ import random
 import time
 
 from .agent import (Agent, EnsembleAgent, RandomAgent, RuleBasedAgent,
-                    RuleBasedAgentAlpha4Aug, RuleBasedAgentAlphaCpuct1,
-                    RuleBasedAgentAlphaCpuct2, RuleBasedAgentAlphaCs,
                     RuleBasedAgentSmartGeese, SoftAgent, view, view_transition)
 from .connection import (accept_socket_connections, connect_socket_connection,
                          send_recv)
@@ -270,7 +268,7 @@ def eval_main(args, argv):
     num_games = int(argv[1]) if len(argv) >= 2 else 100
     num_process = int(argv[2]) if len(argv) >= 3 else 1
 
-    # agent1 = Agent(get_model(env, model_path))
+    agent1 = Agent(get_model(env, model_path))
     critic = None
 
     print('%d process, %d games' % (num_process, num_games))
@@ -280,11 +278,10 @@ def eval_main(args, argv):
 
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
-        # agent1,
-        RuleBasedAgentAlpha4Aug(),
-        RuleBasedAgentAlphaCpuct1(),
-        RuleBasedAgentAlphaCpuct2(),
-        RuleBasedAgentAlphaCs(),
+        agent1,
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)

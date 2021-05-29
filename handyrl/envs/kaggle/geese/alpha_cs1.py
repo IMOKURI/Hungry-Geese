@@ -455,7 +455,7 @@ state_dict = pickle.loads(bz2.decompress(base64.b64decode(PARAM)))
 
 game = HungryGeese()
 agent = NNAgent(state_dict)
-mcts = MCTS(game, agent)
+mcts = MCTS(game, agent, pb_c_base=10, pb_c_init=0.75)
 
 
 def alphageese_agent(obs, config):
