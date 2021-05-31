@@ -10,7 +10,6 @@
   "enable_internet": true,
   "keywords": [],
   "dataset_sources": [
-    "imokuri/hungry-geese-sources",
     "imokuri/hungry-geese-models"
   ],
   "kernel_sources": [],
