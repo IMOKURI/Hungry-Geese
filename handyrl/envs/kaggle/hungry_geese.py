@@ -19,6 +19,7 @@ from kaggle_environments import make
 
 from ...environment import BaseEnvironment
 from ...model import ModelWrapper
+from .geese.smart_goose import model as smart_model
 
 
 class TorusConv2d(nn.Module):
@@ -129,10 +130,27 @@ class GeeseNetAlpha(nn.Module):
 class RandomModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.action_length = 4
 
-    def inference(self, x=None, hidden=None):
-        return {'policy': np.zeros(self.action_length, dtype=np.float32), 'value': np.zeros(1, dtype=np.float32)}
+    def forward(self, x, _=None):
+        xh = x[:, 0, :]
+
+        h = torch.argmax(xh.sum(axis=2), axis=1)
+        w = torch.argmax(xh.sum(axis=1), axis=1)
+
+        whole = x[:, 8:12, :, :].sum(axis=1)
+        prev = x[:, 12, :, :]
+        whole_prev = whole + prev
+        whole_prev = torch.clip(whole_prev, 0, 1)
+
+        north = 1 - whole_prev[torch.arange(len(x)), (h - 1) % 7, w]
+        south = 1 - whole_prev[torch.arange(len(x)), (h + 1) % 7, w]
+        east = 1 - whole_prev[torch.arange(len(x)), h, (w + 1) % 11]
+        west = 1 - whole_prev[torch.arange(len(x)), h, (w - 1) % 11]
+
+        p = torch.rand(len(x), 4)
+        p = p * torch.stack([north, south, west, east], axis=1)
+        v = torch.rand(len(x), 1)
+        return {'policy': p, 'value': v}
 
 
 def get_random_model():
@@ -140,7 +158,22 @@ def get_random_model():
     return ModelWrapper(model)
 
 
+def get_smart_model():
+    return ModelWrapper(smart_model)
+
+
+def get_alpha_model(path):
+    model = GeeseNetAlpha()
+    model.load_state_dict(torch.load(path))
+    model.eval()
+    return ModelWrapper(model)
+
+
 random_model_agent = get_random_model()
+smart_model_agent = get_smart_model()
+pre_train_agent = get_alpha_model("../../../pre-models/geese_net_fold0_best_64_be3500afc1c1b1778e2acea8678d0238c692f11b.pth")
+current_best_agent = get_alpha_model("../../../ds/models/_alpha_64_1436.pth")
+rival_agent = get_alpha_model("../../../ds/models/_alpha_64_4093.pth")
 
 
 class Environment(BaseEnvironment):

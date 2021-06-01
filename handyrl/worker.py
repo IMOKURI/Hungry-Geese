@@ -3,23 +3,25 @@
 
 # worker and gather
 
+import functools
+import multiprocessing as mp
+import pickle
 import random
 import threading
 import time
-import functools
-from socket import gethostname
 from collections import deque
-import multiprocessing as mp
-import pickle
+from socket import gethostname
 
-from .environment import prepare_env, make_env
-from .connection import QueueCommunicator
-from .connection import send_recv, open_multiprocessing_connections
-from .connection import connect_socket_connection, accept_socket_connections
+from .connection import (QueueCommunicator, accept_socket_connections,
+                         connect_socket_connection,
+                         open_multiprocessing_connections, send_recv)
+from .environment import make_env, prepare_env
+from .envs.kaggle.hungry_geese import (current_best_agent, pre_train_agent,
+                                       random_model_agent, rival_agent,
+                                       smart_model_agent)
 from .evaluation import Evaluator
 from .generation import Generator
 from .model import ModelWrapper
-from .envs.kaggle.hungry_geese import random_model_agent
 
 
 class Worker:
@@ -47,7 +49,11 @@ class Worker:
                     model_pool[model_id] = None
                     if args['role'] == 'g':
                         models = {
-                            random_model_agent: 10,
+                            random_model_agent: 5,
+                            smart_model_agent: 20,
+                            pre_train_agent: 20,
+                            current_best_agent: 20,
+                            rival_agent: 20,
                         }
 
                         def normalize(w):
