@@ -1,5 +1,6 @@
 .DS_Store
 *.pyc
 *.pth
+!weights/*.pth
 submission.py
 pre-models
