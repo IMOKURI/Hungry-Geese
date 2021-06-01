@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from kaggle_environments import make
 
 from ...environment import BaseEnvironment
+from ...model import ModelWrapper
 
 
 class TorusConv2d(nn.Module):
@@ -123,6 +124,23 @@ class GeeseNetAlpha(nn.Module):
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
+
+
+class RandomModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.action_length = 4
+
+    def inference(self, x=None, hidden=None):
+        return {'policy': np.zeros(self.action_length, dtype=np.float32), 'value': np.zeros(1, dtype=np.float32)}
+
+
+def get_random_model():
+    model = RandomModel()
+    return ModelWrapper(model)
+
+
+random_model_agent = get_random_model()
 
 
 class Environment(BaseEnvironment):

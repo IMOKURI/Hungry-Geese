@@ -18,7 +18,8 @@ from .connection import send_recv, open_multiprocessing_connections
 from .connection import connect_socket_connection, accept_socket_connections
 from .evaluation import Evaluator
 from .generation import Generator
-from .model import ModelWrapper, RandomModel
+from .model import ModelWrapper
+from .envs.kaggle.hungry_geese import random_model_agent
 
 
 class Worker:
@@ -46,7 +47,7 @@ class Worker:
                     model_pool[model_id] = None
                     if args['role'] == 'g':
                         models = {
-                            RandomModel: 10,
+                            random_model_agent: 10,
                         }
 
                         def normalize(w):

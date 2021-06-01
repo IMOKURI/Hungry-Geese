@@ -589,7 +589,7 @@ class Learner:
                             for p in self.env.players():
                                 if p in args['player']:
                                     args['model_id'][p] = self.model_era
-                                elif np.random.rand() <= 0.5:  # 対戦相手は 50% の確率で 直前の自分のモデル
+                                elif np.random.rand() <= 0.8:
                                     args['model_id'][p] = self.model_era
                                 else:
                                     args['model_id'][p] = -1
