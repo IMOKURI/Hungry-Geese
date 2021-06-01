@@ -16,7 +16,7 @@ train_args:
     update_episodes: 500
     batch_size: 500
     minimum_episodes: 10000
-    maximum_episodes: 500000
+    maximum_episodes: 700000
     epochs: -1
     num_batchers: 8
     eval_rate: 0.1
@@ -26,7 +26,7 @@ train_args:
     policy_target: 'UPGO' # 'UPGO' 'VTRACE' 'TD' 'MC'
     value_target: 'VTRACE' # 'VTRACE' 'TD' 'MC'
     seed: 440
-    restart_epoch: 1
+    restart_epoch: 4093
 
 worker_args:
     server_address: '127.0.0.1'
