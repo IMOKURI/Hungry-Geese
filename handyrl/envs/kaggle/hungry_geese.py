@@ -164,7 +164,7 @@ def get_smart_model():
 
 def get_alpha_model(path):
     model = GeeseNetAlpha()
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path, map_location=torch.device("cpu")))
     model.eval()
     return ModelWrapper(model)
 
