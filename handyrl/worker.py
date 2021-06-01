@@ -50,10 +50,10 @@ class Worker:
                     if args['role'] == 'g':
                         models = {
                             random_model_agent: 5,
-                            smart_model_agent: 20,
-                            pre_train_agent: 20,
-                            current_best_agent: 20,
-                            rival_agent: 20,
+                            smart_model_agent: 10,
+                            pre_train_agent: 10,
+                            current_best_agent: 30,
+                            rival_agent: 30,
                         }
 
                         def normalize(w):
