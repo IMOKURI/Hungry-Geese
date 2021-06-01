@@ -8,10 +8,7 @@ import random
 import time
 
 from .agent import (Agent, EnsembleAgent, RandomAgent, RuleBasedAgent,
-                    RuleBasedAgentSmartGeese, RuleBasedAgentSmartGeese1,
-                    RuleBasedAgentSmartGeese2, RuleBasedAgentSmartGeese3,
-                    RuleBasedAgentSmartGeese4, SoftAgent, view,
-                    view_transition)
+                    RuleBasedAgentSmartGeese, SoftAgent, view, view_transition)
 from .connection import (accept_socket_connections, connect_socket_connection,
                          send_recv)
 from .environment import make_env, prepare_env
@@ -281,11 +278,10 @@ def eval_main(args, argv):
 
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
-        # agent1,
-        RuleBasedAgentSmartGeese1(),
-        RuleBasedAgentSmartGeese2(),
-        RuleBasedAgentSmartGeese3(),
-        RuleBasedAgentSmartGeese4(),
+        agent1,
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
+        RuleBasedAgentSmartGeese(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
