@@ -12,7 +12,6 @@ from collections import deque
 import multiprocessing as mp
 import pickle
 
-from .agent import RandomAgent, RuleBasedAgent, RuleBasedAgentSmartGeese
 from .environment import prepare_env, make_env
 from .connection import QueueCommunicator
 from .connection import send_recv, open_multiprocessing_connections
@@ -39,26 +38,12 @@ class Worker:
     def __del__(self):
         print('closed worker %d' % self.worker_id)
 
-    def _gather_models(self, model_ids, args):
+    def _gather_models(self, model_ids):
         model_pool = {}
         for model_id in model_ids:
             if model_id not in model_pool:
                 if model_id < 0:
                     model_pool[model_id] = None
-                    if args['role'] == 'g':
-                        models = {
-                            RandomAgent: 10,
-                            RuleBasedAgent: 10,
-                            RuleBasedAgentSmartGeese: 30,
-                        }
-
-                        def normalize(w):
-                            s = sum(w)
-                            return [p / s for p in w]
-
-                        agent_ = random.choices(list(models.keys()), k=1, weights=normalize(list(models.values())))[0]
-                        model_pool[model_id] = agent_
-
                 elif model_id == self.latest_model[0]:
                     # use latest model
                     model_pool[model_id] = self.latest_model[1]
@@ -78,7 +63,7 @@ class Worker:
             models = {}
             if 'model_id' in args:
                 model_ids = list(args['model_id'].values())
-                model_pool = self._gather_models(model_ids, args)
+                model_pool = self._gather_models(model_ids)
 
                 # make dict of models
                 for p, model_id in args['model_id'].items():
