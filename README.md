@@ -72,7 +72,7 @@ https://www.kaggle.com/c/hungry-geese
 
 #### 対戦相手
 
-- 学習時の対戦相手は直前の自分のモデル
+- 学習時の対戦相手は [ここで定義](https://github.com/IMOKURI/Hungry-Geese/blob/b0cebefa45b77cd07a19ccca996a18e5913857ab/handyrl/worker.py#L51-L57)
 - 学習時の評価用の相手は [ここで定義](https://github.com/IMOKURI/Hungry-Geese/blob/09acf84a9ecec0cd67277a301f0959263c9c565f/handyrl/evaluation.py#L123)
 - シュミレーション `python main.py -e` の対戦相手は [ここで定義](https://github.com/IMOKURI/Hungry-Geese/blob/09acf84a9ecec0cd67277a301f0959263c9c565f/handyrl/evaluation.py#L278-L284)
 
