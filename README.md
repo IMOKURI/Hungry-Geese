@@ -13,6 +13,8 @@
       - [ハイパーパラメータ](#%E3%83%8F%E3%82%A4%E3%83%91%E3%83%BC%E3%83%91%E3%83%A9%E3%83%A1%E3%83%BC%E3%82%BF)
       - [対戦相手](#%E5%AF%BE%E6%88%A6%E7%9B%B8%E6%89%8B)
   - [MCTS](#mcts)
+    - [ハイパーパラメータ](#%E3%83%8F%E3%82%A4%E3%83%91%E3%83%BC%E3%83%91%E3%83%A9%E3%83%A1%E3%83%BC%E3%82%BF-1)
+  - [評価](#%E8%A9%95%E4%BE%A1)
   - [Kaggle への Submit](#kaggle-%E3%81%B8%E3%81%AE-submit)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -77,6 +79,24 @@ https://www.kaggle.com/c/hungry-geese
 ## MCTS
 
 [こちら](https://www.kaggle.com/shoheiazuma/alphageese-baseline) を ~~パクる~~ 参考にする
+
+
+### ハイパーパラメータ
+
+現時点では以下がベスト
+
+```
+Cbase = 10
+Cinit = 1.0
+```
+
+[参考](https://github.com/IMOKURI/Hungry-Geese/issues/21)
+
+## 評価
+
+モデル同士で対戦し、成績の良いモデルを submit する
+
+[Notebook](https://www.kaggle.com/imokuri/hungry-geese-eval-models)
 
 
 ## Kaggle への Submit
