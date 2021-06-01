@@ -12,14 +12,13 @@ from collections import deque
 import multiprocessing as mp
 import pickle
 
-from .agent import RandomAgent, RuleBasedAgent, RuleBasedAgentSmartGeese
 from .environment import prepare_env, make_env
 from .connection import QueueCommunicator
 from .connection import send_recv, open_multiprocessing_connections
 from .connection import connect_socket_connection, accept_socket_connections
 from .evaluation import Evaluator
 from .generation import Generator
-from .model import ModelWrapper
+from .model import ModelWrapper, RandomModel
 
 
 class Worker:
@@ -47,9 +46,7 @@ class Worker:
                     model_pool[model_id] = None
                     if args['role'] == 'g':
                         models = {
-                            RandomAgent: 10,
-                            RuleBasedAgent: 10,
-                            RuleBasedAgentSmartGeese: 30,
+                            RandomModel: 10,
                         }
 
                         def normalize(w):

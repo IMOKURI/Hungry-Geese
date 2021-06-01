@@ -35,26 +35,6 @@ class RuleBasedAgentSmartGeese(RandomAgent):
         return env.rule_based_action_smart_geese(player)
 
 
-class RuleBasedAgentSmartGeese1(RandomAgent):
-    def action(self, env, player, show=False):
-        return env.rule_based_action_smart_geese(player, "005_v3_epoch_9321_4aug")
-
-
-class RuleBasedAgentSmartGeese2(RandomAgent):
-    def action(self, env, player, show=False):
-        return env.rule_based_action_smart_geese(player, "005_v3_epoch_13726_4aug")
-
-
-class RuleBasedAgentSmartGeese3(RandomAgent):
-    def action(self, env, player, show=False):
-        return env.rule_based_action_smart_geese(player, "005_v3_epoch_21099_4aug")
-
-
-class RuleBasedAgentSmartGeese4(RandomAgent):
-    def action(self, env, player, show=False):
-        return env.rule_based_action_smart_geese(player, "alpha_64_1436")
-
-
 def view(env, player=None):
     if hasattr(env, 'view'):
         env.view(player=player)
