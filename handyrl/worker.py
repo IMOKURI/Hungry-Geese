@@ -16,9 +16,16 @@ from .connection import (QueueCommunicator, accept_socket_connections,
                          connect_socket_connection,
                          open_multiprocessing_connections, send_recv)
 from .environment import make_env, prepare_env
-from .envs.kaggle.hungry_geese import (current_best_agent, pre_train_agent,
-                                       random_model_agent, rival_agent,
-                                       smart_model_agent)
+from .envs.kaggle.hungry_geese import (alpha_64_1436_agent,
+                                       alpha_64_3391_agent,
+                                       alpha_64_4093_agent, pre_train_agent,
+                                       random_model_agent, smart_model_agent)
+from .envs.kaggle.hungry_geese_center_5 import (Agent005_9321_model,
+                                                Agent005_13726_model,
+                                                Agent005_21099_model)
+from .envs.kaggle.hungry_geese_center_6 import (Agent006_13777_model,
+                                                Agent006_17586_model,
+                                                Agent006_24147_model)
 from .evaluation import Evaluator
 from .generation import Generator
 from .model import ModelWrapper
@@ -52,8 +59,15 @@ class Worker:
                             random_model_agent: 5,
                             smart_model_agent: 10,
                             pre_train_agent: 10,
-                            current_best_agent: 30,
-                            rival_agent: 30,
+                            alpha_64_1436_agent: 10,
+                            alpha_64_3391_agent: 10,
+                            alpha_64_4093_agent: 10,
+                            Agent005_9321_model: 10,
+                            Agent005_13726_model: 10,
+                            Agent005_21099_model: 10,
+                            Agent006_13777_model: 10,
+                            Agent006_17586_model: 10,
+                            Agent006_24147_model: 10,
                         }
 
                         def normalize(w):
