@@ -284,12 +284,14 @@ class Batcher:
 
     def select_episode(self):
         while True:
+            # 直近のエピソードが選ばれやすくなっている
             ep_idx = random.randrange(min(len(self.episodes), self.args['maximum_episodes']))
             accept_rate = 1 - (len(self.episodes) - 1 - ep_idx) / self.args['maximum_episodes']
             if random.random() < accept_rate:
                 break
         ep = self.episodes[ep_idx]
-        turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'])  # change start turn by sequence length
+        # turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'])  # change start turn by sequence length
+        turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'] // 2)
         st = random.randrange(turn_candidates)
         ed = min(st + self.args['forward_steps'], ep['steps'])
         st_block = st // self.args['compress_steps']
@@ -589,7 +591,7 @@ class Learner:
                             for p in self.env.players():
                                 if p in args['player']:
                                     args['model_id'][p] = self.model_era
-                                elif np.random.rand() <= 0.3:
+                                elif np.random.rand() <= 0.5:
                                     args['model_id'][p] = self.model_era
                                 else:
                                     args['model_id'][p] = -1
