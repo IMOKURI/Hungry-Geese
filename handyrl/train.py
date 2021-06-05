@@ -290,8 +290,8 @@ class Batcher:
             if random.random() < accept_rate:
                 break
         ep = self.episodes[ep_idx]
-        # turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'])  # change start turn by sequence length
-        turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'] // 2)
+        turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'])  # change start turn by sequence length
+        # turn_candidates = 1 + max(0, ep['steps'] - self.args['forward_steps'] // 2)
         st = random.randrange(turn_candidates)
         ed = min(st + self.args['forward_steps'], ep['steps'])
         st_block = st // self.args['compress_steps']
