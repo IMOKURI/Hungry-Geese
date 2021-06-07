@@ -54,28 +54,28 @@ class Worker:
             if model_id not in model_pool:
                 if model_id < 0:
                     model_pool[model_id] = None
-                    if args['role'] == 'g':
-                        models = {
-                            random_model_agent: 1,
-                            smart_model_agent: 5,
-                            pre_train_agent: 5,
-                            alpha_64_1436_agent: 10,
-                            alpha_64_3391_agent: 10,
-                            alpha_64_4093_agent: 10,
-                            Agent005_9321_model: 10,
-                            Agent005_13726_model: 10,
-                            Agent005_21099_model: 10,
-                            Agent006_13777_model: 10,
-                            Agent006_17586_model: 10,
-                            Agent006_24147_model: 10,
-                        }
+                    # if args['role'] == 'g':
+                    #     models = {
+                    #         random_model_agent: 1,
+                    #         smart_model_agent: 5,
+                    #         pre_train_agent: 5,
+                    #         alpha_64_1436_agent: 10,
+                    #         alpha_64_3391_agent: 10,
+                    #         alpha_64_4093_agent: 10,
+                    #         Agent005_9321_model: 10,
+                    #         Agent005_13726_model: 10,
+                    #         Agent005_21099_model: 10,
+                    #         Agent006_13777_model: 10,
+                    #         Agent006_17586_model: 10,
+                    #         Agent006_24147_model: 10,
+                    #     }
 
-                        def normalize(w):
-                            s = sum(w)
-                            return [p / s for p in w]
+                    #     def normalize(w):
+                    #         s = sum(w)
+                    #         return [p / s for p in w]
 
-                        agent_ = random.choices(list(models.keys()), k=1, weights=normalize(list(models.values())))[0]
-                        model_pool[model_id] = agent_
+                    #     agent_ = random.choices(list(models.keys()), k=1, weights=normalize(list(models.values())))[0]
+                    #     model_pool[model_id] = agent_
 
                 elif model_id == self.latest_model[0]:
                     # use latest model
