@@ -85,12 +85,12 @@ class GeeseNet(nn.Module):
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 32
-        self.conv0 = TorusConv2d(28, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        layers, filters = 8, 32
+        self.conv0 = TorusConv2d(28, filters, (5, 5), True)
+        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (5, 5), True) for _ in range(layers)])
 
-        self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
-        self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
+        self.conv_p = TorusConv2d(filters, filters, (5, 5), True)
+        self.conv_v = TorusConv2d(filters, filters, (5, 5), True)
 
         self.head_p1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
         self.head_p2 = nn.Linear(filters * 3, 4, bias=False)
