@@ -85,43 +85,78 @@ class GeeseNet(nn.Module):
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 8, 32
-        self.conv0 = TorusConv2d(28, filters, (5, 5), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (5, 5), True) for _ in range(layers)])
 
-        self.conv_p = TorusConv2d(filters, filters, (5, 5), True)
-        self.conv_v = TorusConv2d(filters, filters, (5, 5), True)
+        layers = Config.geese_net_layers
+        filters = Config.geese_net_filters
+        dim = 324
 
-        self.head_p1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
-        self.head_p2 = nn.Linear(filters * 3, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
-        self.head_v2 = nn.Linear(filters * 3, 1, bias=False)
+        self.embed_step = nn.Embedding(200, 11)
+        self.embed_hunger = nn.Embedding(40, 6)
+        self.embed_length = nn.Embedding(100, 7)
+        self.embed_diff_len = nn.Embedding(100, 8)
+        self.embed_diff_head = nn.Embedding(9, 5)
+
+        self.conv0 = TorusConv2d(25, filters, (3, 3), True)
+        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+
+        self.attention = nn.MultiheadAttention(dim, 1)
+
+        self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
+        self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
+        self.head_v1 = nn.Linear(dim, dim // 2, bias=False)
+        self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
 
     def forward(self, x, _=None):
+        x_feats = x[:, -1].view(x.size(0), -1).long()
+
+        # Embedding for features
+        e_step = self.embed_step(x_feats[:, 0])
+        e_hung = self.embed_hunger(x_feats[:, 1])
+        e_leng = self.embed_length(x_feats[:, 2:6]).view(x.size(0), -1)
+        e_diff_lb = x_feats[:, 6:9]
+        e_diff_l = self.embed_diff_len(x_feats[:, 9:12]).view(x.size(0), -1)
+        e_diff_h = self.embed_diff_head(x_feats[:, 12:15]).view(x.size(0), -1)
+
+        x = x[:, :-1].float()
+
+        # CNN for observation
         h = F.relu_(self.conv0(x))
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h_p = F.relu_(self.conv_p(h))
-        h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p2 = (h_p * x[:, 1:2]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p3 = (h_p * x[:, 2:3]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p4 = (h_p * x[:, 3:4]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_avg_p1 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(-1)
-        h_avg_p2 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(1)
+        # Extract head position
+        h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
+        h_head2 = (h * x[:, 1:2]).view(h.size(0), h.size(1), -1).sum(-1)
+        h_head3 = (h * x[:, 2:3]).view(h.size(0), h.size(1), -1).sum(-1)
+        h_head4 = (h * x[:, 3:4]).view(h.size(0), h.size(1), -1).sum(-1)
+        h_avg1 = h.view(h.size(0), h.size(1), -1).mean(-1)
+        h_avg2 = h.view(h.size(0), h.size(1), -1).mean(1)
 
-        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_head_p2, h_head_p3, h_head_p4, h_avg_p1, h_avg_p2], 1)))
+        # Merge features
+        h = torch.cat(
+            [
+                h_head,
+                h_head2,
+                h_head3,
+                h_head4,
+                h_avg1,
+                h_avg2,
+                e_step,
+                e_hung,
+                e_leng,
+                e_diff_lb,
+                e_diff_l,
+                e_diff_h,
+            ],
+            1,
+        ).view(1, h.size(0), -1)
+
+        h, _ = self.attention(h, h, h)
+
+        h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
         p = self.head_p2(h_p)
 
-        h_v = F.relu_(self.conv_v(h))
-        h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v2 = (h_v * x[:, 1:2]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v3 = (h_v * x[:, 2:3]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v4 = (h_v * x[:, 3:4]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v1 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
-        h_avg_v2 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(1)
-
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_head_v2, h_head_v3, h_head_v4, h_avg_v1, h_avg_v2], 1)))
+        h_v = F.relu_(self.head_v1(h.view(x.size(0), -1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -381,8 +416,9 @@ class Environment(BaseEnvironment):
         # obses.append(self.observation_centering_head(player))
         obses.append(self.observation_reverse_pos(player))
         obses.append(self.observation_disappear_next(player))
-        obses.append(self.observation_num_step(player))
-        obses.append(self.observation_length(player))
+        # obses.append(self.observation_num_step(player))
+        # obses.append(self.observation_length(player))
+        obses.append(self.observation_features(player))
         x = np.concatenate(obses)
         return x
 
@@ -556,6 +592,62 @@ class Environment(BaseEnvironment):
         b[1, :, 8:11] = (my_length - opposite3_length) / 10
 
         return b
+
+    def observation_features(self, player=None):
+        if player is None:
+            player = 0
+
+        b = np.zeros((7 * 11), dtype=np.float16)
+        obs = self.obs_list[-1][0]['observation']
+        step = obs["step"]
+
+        my_goose = obs["geese"][player]
+        my_length = len(my_goose)
+
+        # num step
+        b[0] = step % 200
+        b[1] = step % 40
+
+        """
+        2-5: geese length
+        6-8: 1 if my_length is greater than opponent length
+        9-11: difference between my_length and opponent length
+        """
+        for p, pos_list in enumerate(obs["geese"]):
+            pid = (p - player) % 4
+
+            p_length = len(pos_list)
+            b[2 + pid] = p_length
+
+            if pid == 0:
+                continue
+
+            if my_length > p_length:
+                b[5 + pid] = 1
+                b[8 + pid] = my_length - p_length
+            else:
+                b[5 + pid] = 0
+                b[8 + pid] = p_length - my_length
+
+        """
+        12-14: difference between my head position and opponent one
+        """
+        if my_length != 0:
+
+            for p, pos_list in enumerate(obs["geese"]):
+                pid = (p - player) % 4
+
+                if pid == 0 or len(pos_list) == 0:
+                    continue
+
+                diff = abs(my_goose[0] - pos_list[0])
+                x_ = diff % 11
+                x = min(x_, 11 - x_)
+                y_ = diff // 11
+                y = min(y_, 7 - y_)
+                b[11 + pid] = x + y
+
+        return b.reshape(1, 7, 11)
 
 
 if __name__ == '__main__':
