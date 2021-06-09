@@ -86,8 +86,8 @@ class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
 
-        layers = Config.geese_net_layers
-        filters = Config.geese_net_filters
+        layers = 12
+        filters = 32
         dim = 324
 
         self.embed_step = nn.Embedding(200, 11)
