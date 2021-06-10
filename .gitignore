@@ -4,3 +4,4 @@
 !weights/*.pth
 submission.py
 pre-models
+nohup.out
