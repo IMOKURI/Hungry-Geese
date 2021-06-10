@@ -204,12 +204,9 @@ def get_alpha_model(path):
     return ModelWrapper(model)
 
 
-# random_model_agent = get_random_model()
-# smart_model_agent = get_smart_model()
-# pre_train_agent = get_alpha_model("weights/geese_net_fold0_best_64_be3500afc1c1b1778e2acea8678d0238c692f11b.pth")
-# alpha_64_1436_agent = get_alpha_model("weights/alpha_64_1436.pth")
-# alpha_64_3391_agent = get_alpha_model("weights/alpha_64_4093.pth")
-# alpha_64_4093_agent = get_alpha_model("weights/alpha_64_4093.pth")
+# random_model_model = get_random_model()
+# smart_model_model = get_smart_model()
+pre_train_model = get_alpha_model("weights/geese_net_fold0_best_embed_fb2f9e5b520a423c9681e43b7b33e635699eb3d9.pth")
 
 
 class Environment(BaseEnvironment):

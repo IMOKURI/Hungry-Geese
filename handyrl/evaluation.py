@@ -12,7 +12,7 @@ from .agent import (Agent, EnsembleAgent, RandomAgent, RuleBasedAgent,
 from .connection import (accept_socket_connections, connect_socket_connection,
                          send_recv)
 from .environment import make_env, prepare_env
-from .envs.kaggle.hungry_geese_center_5 import Agent005_21099_model
+from .envs.kaggle.hungry_geese import pre_train_model
 
 network_match_port = 9876
 
@@ -122,7 +122,7 @@ class Evaluator:
         self.env = env
         self.args = args
         # self.default_agent = RuleBasedAgentSmartGeese()  # RuleBasedAgent, trained agent, etc.
-        model = Agent005_21099_model
+        model = pre_train_model
         self.default_agent = Agent(model, self.args["observation"])
 
     def execute(self, models, args):
