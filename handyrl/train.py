@@ -591,7 +591,7 @@ class Learner:
                             for p in self.env.players():
                                 if p in args['player']:
                                     args['model_id'][p] = self.model_era
-                                elif np.random.rand() <= 0.5:
+                                elif np.random.rand() <= 0.3:
                                     args['model_id'][p] = self.model_era
                                 else:
                                     args['model_id'][p] = -1
