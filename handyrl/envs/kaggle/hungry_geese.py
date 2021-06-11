@@ -117,7 +117,7 @@ class GeeseNetAlpha(nn.Module):
         e_diff_l = self.embed_diff_len(x_feats[:, 9:12]).view(x.size(0), -1)
         e_diff_h = self.embed_diff_head(x_feats[:, 12:15]).view(x.size(0), -1)
 
-        x = x[:, :-1].float()
+        x = x[:, :25].float()
 
         # CNN for observation
         h = F.relu_(self.conv0(x))
@@ -204,8 +204,8 @@ def get_alpha_model(path):
     return ModelWrapper(model)
 
 
-# random_model_model = get_random_model()
-# smart_model_model = get_smart_model()
+random_model_model = get_random_model()
+smart_model_model = get_smart_model()
 pre_train_model = get_alpha_model("weights/geese_net_fold0_best_embed_fb2f9e5b520a423c9681e43b7b33e635699eb3d9.pth")
 
 
@@ -413,8 +413,8 @@ class Environment(BaseEnvironment):
         # obses.append(self.observation_centering_head(player))
         obses.append(self.observation_reverse_pos(player))
         obses.append(self.observation_disappear_next(player))
-        # obses.append(self.observation_num_step(player))
-        # obses.append(self.observation_length(player))
+        obses.append(self.observation_num_step(player))
+        obses.append(self.observation_length(player))
         obses.append(self.observation_features(player))
         x = np.concatenate(obses)
         return x
