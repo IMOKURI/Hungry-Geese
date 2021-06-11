@@ -13,6 +13,11 @@ from .connection import (accept_socket_connections, connect_socket_connection,
                          send_recv)
 from .environment import make_env, prepare_env
 from .envs.kaggle.hungry_geese import pre_train_model
+from .envs.kaggle.hungry_geese_center_5 import (Agent005_9321_model,
+                                                Agent005_13726_model,
+                                                Agent005_17669_model,
+                                                Agent005_18128_model,
+                                                Agent005_21099_model)
 
 network_match_port = 9876
 
@@ -272,6 +277,9 @@ def eval_main(args, argv):
     num_process = int(argv[2]) if len(argv) >= 3 else 1
 
     agent1 = Agent(get_model(env, model_path))
+    agent2 = Agent(Agent005_9321_model)
+    agent3 = Agent(Agent005_13726_model)
+    agent4 = Agent(Agent005_21099_model)
     critic = None
 
     print('%d process, %d games' % (num_process, num_games))
@@ -282,9 +290,12 @@ def eval_main(args, argv):
     # agents = [agent1] + [RandomAgent() for _ in range(len(env.players()) - 1)]
     agents = [
         agent1,
-        RuleBasedAgentSmartGeese(),
-        RuleBasedAgentSmartGeese(),
-        RuleBasedAgentSmartGeese(),
+        agent2,
+        agent3,
+        agent4,
+        # RuleBasedAgentSmartGeese(),
+        # RuleBasedAgentSmartGeese(),
+        # RuleBasedAgentSmartGeese(),
     ]
 
     evaluate_mp(env, agents, critic, env_args, {'default': {}}, num_process, num_games, seed)
