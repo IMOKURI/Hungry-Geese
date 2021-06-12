@@ -56,9 +56,9 @@ class Worker:
                     model_pool[model_id] = None
                     if args['role'] == 'g':
                         models = {
-                            random_model_model: 1,
-                            smart_model_model: 10,
-                            pre_train_model: 10,
+                            random_model_model: 10,
+                            smart_model_model: 50,
+                            pre_train_model: 50,
                             Agent005_9321_model: 10,
                             Agent005_13726_model: 10,
                             Agent005_17669_model: 10,
