@@ -55,8 +55,8 @@ def make_batch(episodes, args):
         moments = moments_[ep['start'] - ep['base']:ep['end'] - ep['base']]
         players = list(moments[0]['observation'].keys())
         if not args['turn_based_training']:  # solo training
-            # players = [random.choice(players)]
-            players = [0]
+            players = [random.choice(players)]
+            # players = [0]
 
         obs_zeros = map_r(moments[0]['observation'][moments[0]['turn'][0]], lambda o: np.zeros_like(o))  # template for padding
         p_zeros = np.zeros_like(moments[0]['policy'][moments[0]['turn'][0]])  # template for padding
@@ -585,8 +585,8 @@ class Learner:
 
                         if args['role'] == 'g':
                             # genatation configuration
-                            # args['player'] = self.env.players()
-                            args['player'] = [0]
+                            args['player'] = self.env.players()
+                            # args['player'] = [0]
 
                             for p in self.env.players():
                                 if p in args['player']:

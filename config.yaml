@@ -13,7 +13,7 @@ train_args:
     compress_steps: 4
     entropy_regularization: 2.0e-3
     entropy_regularization_decay: 0.3
-    update_episodes: 400
+    update_episodes: 300
     batch_size: 400
     minimum_episodes: 10000
     maximum_episodes: 500000
