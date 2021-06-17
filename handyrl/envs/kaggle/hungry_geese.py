@@ -325,9 +325,9 @@ class Environment(BaseEnvironment):
 
         return bonus
 
-    def reward(self):
-        x = self.reward_default()
-        return x
+    # def reward(self):
+    #     x = self.reward_default()
+    #     return x
 
     def reward_default(self):
         """
