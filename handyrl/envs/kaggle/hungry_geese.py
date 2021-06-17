@@ -7,6 +7,7 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
+import itertools
 import random
 from collections import defaultdict
 
@@ -88,18 +89,10 @@ class GeeseNetAlpha(nn.Module):
 
         layers = 12
         filters = 32
-        dim = 324
+        dim = 64
 
-        self.embed_step = nn.Embedding(200, 11)
-        self.embed_hunger = nn.Embedding(40, 6)
-        self.embed_length = nn.Embedding(100, 7)
-        self.embed_diff_len = nn.Embedding(100, 8)
-        self.embed_diff_head = nn.Embedding(9, 5)
-
-        self.conv0 = TorusConv2d(25, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(28, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.attention = nn.MultiheadAttention(dim, 1)
 
         self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
         self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
@@ -107,18 +100,6 @@ class GeeseNetAlpha(nn.Module):
         self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
 
     def forward(self, x, _=None):
-        x_feats = x[:, -1].view(x.size(0), -1).long()
-
-        # Embedding for features
-        e_step = self.embed_step(x_feats[:, 0])
-        e_hung = self.embed_hunger(x_feats[:, 1])
-        e_leng = self.embed_length(x_feats[:, 2:6]).view(x.size(0), -1)
-        e_diff_lb = x_feats[:, 6:9]
-        e_diff_l = self.embed_diff_len(x_feats[:, 9:12]).view(x.size(0), -1)
-        e_diff_h = self.embed_diff_head(x_feats[:, 12:15]).view(x.size(0), -1)
-
-        x = x[:, :25].float()
-
         # CNN for observation
         h = F.relu_(self.conv0(x))
         for block in self.blocks:
@@ -126,32 +107,10 @@ class GeeseNetAlpha(nn.Module):
 
         # Extract head position
         h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head2 = (h * x[:, 1:2]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head3 = (h * x[:, 2:3]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head4 = (h * x[:, 3:4]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_avg1 = h.view(h.size(0), h.size(1), -1).mean(-1)
-        h_avg2 = h.view(h.size(0), h.size(1), -1).mean(1)
+        h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
 
         # Merge features
-        h = torch.cat(
-            [
-                h_head,
-                h_head2,
-                h_head3,
-                h_head4,
-                h_avg1,
-                h_avg2,
-                e_step,
-                e_hung,
-                e_leng,
-                e_diff_lb,
-                e_diff_l,
-                e_diff_h,
-            ],
-            1,
-        ).view(1, h.size(0), -1)
-
-        h, _ = self.attention(h, h, h)
+        h = torch.cat([h_head, h_avg], 1).view(1, h.size(0), -1)
 
         h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
         p = self.head_p2(h_p)
@@ -335,6 +294,60 @@ class Environment(BaseEnvironment):
                 return False
         return True
 
+    def distance(self, a, b):
+        x = self.to_row(0, b) - self.to_row(0, a)
+        y = self.to_col(0, b) - self.to_col(0, a)
+        return (x, y), abs(x) + abs(y)
+
+    def safety_bonus(self, bonus=50):
+        bonus = {i: 0 for i in range(4)}
+        geese = self.obs_list[-1][0]["observation"]["geese"]
+
+        for p in range(4):
+            if len(geese[p]) == 0:
+                continue
+
+            for pp in range(4):
+                if p == pp or len(geese[pp]) == 0:
+                    continue
+
+                (x, y), d = self.distance(geese[p][0], geese[pp][0])
+
+                if d == 2:
+                    if self.last_actions[p] == 0 and x > 0:
+                        bonus[p] = 50
+                    elif self.last_actions[p] == 1 and x < 0:
+                        bonus[p] = 50
+                    elif self.last_actions[p] == 2 and y > 0:
+                        bonus[p] = 50
+                    elif self.last_actions[p] == 3 and y < 0:
+                        bonus[p] = 50
+
+        return bonus
+
+    def reward(self):
+        x = self.reward_default()
+        return x
+
+    def reward_default(self):
+        """
+        もともと以下の値となっている
+        reward = steps survived * (configuration.max_length + 1) + goose length
+        """
+        obs = self.obs_list[-1]
+        geese = obs[0]["observation"]["geese"]
+
+        safe_bonus = self.safety_bonus()
+
+        rewards = {}
+        for p, o in enumerate(obs):
+            if o["status"] == "ACTIVE":
+                rewards[p] = o["reward"] + safe_bonus[p]
+            else:
+                rewards[p] = o["reward"]
+
+        return rewards
+
     def outcome(self):
         # return terminal outcomes
         # 1st: 1.00 2nd: 0.33 3rd: -0.33 4th: -1.00
@@ -415,7 +428,7 @@ class Environment(BaseEnvironment):
         obses.append(self.observation_disappear_next(player))
         obses.append(self.observation_num_step(player))
         obses.append(self.observation_length(player))
-        obses.append(self.observation_features(player))
+        # obses.append(self.observation_features(player))
         x = np.concatenate(obses)
         return x
 
