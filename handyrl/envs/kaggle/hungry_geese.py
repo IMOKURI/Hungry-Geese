@@ -165,7 +165,7 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_alpha_model("weights/geese_net_fold0_best_embed_fb2f9e5b520a423c9681e43b7b33e635699eb3d9.pth")
+pre_train_model = get_alpha_model("weights/geese_net_fold0_best_simple_3e9bb8472d21c8cc8ae9e2bf9fb37aae0b6bf1b5.pth")
 
 
 class Environment(BaseEnvironment):
