@@ -50,19 +50,20 @@ class Conv2d(nn.Module):
         return h
 
 
-class GeeseNet(nn.Module):
+class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
-        layers, filters = 12, 32
-        self.conv0 = TorusConv2d(17, filters, (3, 3), True)
+        layers, filters = 12, 64
+        self.conv0 = TorusConv2d(28, filters, (3, 3), True)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
         self.conv_v = TorusConv2d(filters, filters, (3, 3), True)
 
-        self.head_p = nn.Linear(filters, 4, bias=False)
-        self.head_v1 = nn.Linear(filters * 2, filters, bias=False)
-        self.head_v2 = nn.Linear(filters, 1, bias=False)
+        self.head_p1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
+        self.head_p2 = nn.Linear(filters * 3, 4, bias=False)
+        self.head_v1 = nn.Linear(filters * 5 + 77, filters * 3, bias=False)
+        self.head_v2 = nn.Linear(filters * 3, 1, bias=False)
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
@@ -71,51 +72,24 @@ class GeeseNet(nn.Module):
 
         h_p = F.relu_(self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        p = self.head_p(h_head_p)
+        h_head_p2 = (h_p * x[:, 1:2]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
+        h_head_p3 = (h_p * x[:, 2:3]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
+        h_head_p4 = (h_p * x[:, 3:4]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
+        h_avg_p1 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(-1)
+        h_avg_p2 = h_p.view(h_p.size(0), h_p.size(1), -1).mean(1)
+
+        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_head_p2, h_head_p3, h_head_p4, h_avg_p1, h_avg_p2], 1)))
+        p = self.head_p2(h_p)
 
         h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
+        h_head_v2 = (h_v * x[:, 1:2]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
+        h_head_v3 = (h_v * x[:, 2:3]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
+        h_head_v4 = (h_v * x[:, 3:4]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
+        h_avg_v1 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
+        h_avg_v2 = h_v.view(h_v.size(0), h_v.size(1), -1).mean(1)
 
-        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
-        v = torch.tanh(self.head_v2(h_v))
-
-        return {"policy": p, "value": v, "h_head_p": h_head_p, "h_head_v": h_head_v, "h_avg_v": h_avg_v}
-
-
-class GeeseNetAlpha(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        layers = 12
-        filters = 32
-        dim = 64
-
-        self.conv0 = TorusConv2d(28, filters, (3, 3), True)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
-
-        self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
-        self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
-        self.head_v1 = nn.Linear(dim, dim // 2, bias=False)
-        self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
-
-    def forward(self, x, _=None):
-        # CNN for observation
-        h = F.relu_(self.conv0(x))
-        for block in self.blocks:
-            h = F.relu_(h + block(h))
-
-        # Extract head position
-        h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-
-        # Merge features
-        h = torch.cat([h_head, h_avg], 1).view(1, h.size(0), -1)
-
-        h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
-        p = self.head_p2(h_p)
-
-        h_v = F.relu_(self.head_v1(h.view(x.size(0), -1)))
+        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_head_v2, h_head_v3, h_head_v4, h_avg_v1, h_avg_v2], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -165,7 +139,7 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_alpha_model("weights/geese_net_fold0_best_simple_3e9bb8472d21c8cc8ae9e2bf9fb37aae0b6bf1b5.pth")
+pre_train_model = get_alpha_model("weights/alpha_64_3391.pth")
 
 
 class Environment(BaseEnvironment):
@@ -300,7 +274,7 @@ class Environment(BaseEnvironment):
         return (x, y), abs(x) + abs(y)
 
     def safety_bonus(self, bonus=50):
-        bonus = {i: 0 for i in range(4)}
+        safe_bonus = {i: 0 for i in range(4)}
         geese = self.obs_list[-1][0]["observation"]["geese"]
 
         for p in range(4):
@@ -315,15 +289,15 @@ class Environment(BaseEnvironment):
 
                 if d == 2:
                     if self.last_actions[p] == 0 and x > 0:
-                        bonus[p] = 50
+                        safe_bonus[p] = bonus
                     elif self.last_actions[p] == 1 and x < 0:
-                        bonus[p] = 50
+                        safe_bonus[p] = bonus
                     elif self.last_actions[p] == 2 and y > 0:
-                        bonus[p] = 50
+                        safe_bonus[p] = bonus
                     elif self.last_actions[p] == 3 and y < 0:
-                        bonus[p] = 50
+                        safe_bonus[p] = bonus
 
-        return bonus
+        return safe_bonus
 
     def reward(self):
         x = self.reward_default()
