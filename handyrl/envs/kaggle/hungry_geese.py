@@ -618,7 +618,7 @@ class Environment(BaseEnvironment):
         my_length = len(my_goose)
 
         # num step
-        b[0] = (step - 194) if step >= 195 else 0
+        b[0] = (step - 195) if step > 195 else 0
         b[1] = (step % 40 - 35) if step % 40 > 35 else 0
 
         """
