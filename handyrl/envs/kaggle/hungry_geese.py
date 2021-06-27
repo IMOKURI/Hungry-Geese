@@ -24,16 +24,18 @@ from .geese.smart_goose import model as smart_model
 
 
 class TorusConv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn, groups=1):
+    def __init__(self, input_dim, output_dim, kernel_size, do=False, bn=True):
         super().__init__()
         self.edge_size = (kernel_size[0] // 2, kernel_size[1] // 2)
-        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size, groups=groups)
+        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
+        self.do = nn.Dropout2d(p=0.1) if do else None
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
-        h = torch.cat([x[:, :, :, -self.edge_size[1]:], x, x[:, :, :, :self.edge_size[1]]], dim=3)
-        h = torch.cat([h[:, :, -self.edge_size[0]:], h, h[:, :, :self.edge_size[0]]], dim=2)
+        h = torch.cat([x[:, :, :, -self.edge_size[1] :], x, x[:, :, :, : self.edge_size[1]]], dim=3)
+        h = torch.cat([h[:, :, -self.edge_size[0] :], h, h[:, :, : self.edge_size[0]]], dim=2)
         h = self.conv(h)
+        h = self.do(h) if self.do is not None else h
         h = self.bn(h) if self.bn is not None else h
         return h
 
@@ -55,22 +57,21 @@ class GeeseNetAlpha(nn.Module):
         super().__init__()
 
         layers = 12
-        filters = 48
-        dim = 270
+        filters = 32
+        dim = filters * 5 + 30
 
         self.embed_step = nn.Embedding(5, 3)
         self.embed_hunger = nn.Embedding(5, 3)
         self.embed_diff_len = nn.Embedding(7, 4)
         self.embed_diff_head = nn.Embedding(9, 4)
 
-        self.conv0 = TorusConv2d(25, filters, (3, 3), True)
+        self.conv0 = TorusConv2d(25, filters, (3, 3))
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.conv1 = TorusConv2d(filters, filters, (5, 5))
 
-        self.conv1 = TorusConv2d(filters, filters, (5, 5), True)
-
-        self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
+        self.head_p1 = nn.Linear(dim, dim // 2, bias=True)
         self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
-        self.head_v1 = nn.Linear(dim, dim // 2, bias=False)
+        self.head_v1 = nn.Linear(dim, dim // 2, bias=True)
         self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
 
     def forward(self, x, _=None):
@@ -90,7 +91,7 @@ class GeeseNetAlpha(nn.Module):
         for block in self.blocks:
             h = F.relu_(h + block(h))
 
-        h = F.relu_(self.conv1(h))
+        h = F.relu_(h + self.conv1(h))
 
         # Extract head position
         h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
@@ -168,7 +169,7 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_alpha_model("weights/geese_net_fold0_best_48_927cb4c934d70fb880b0b38c9ea44cb8608ede3c.pth")
+pre_train_model = get_alpha_model("weights/geese_net_fold1_best.pth")
 
 
 class Environment(BaseEnvironment):
