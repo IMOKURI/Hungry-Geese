@@ -37,7 +37,7 @@ https://www.kaggle.com/c/hungry-geese
 [rating 1200 以上の agent の対戦履歴](https://www.kaggle.com/imokuri/hungrygeeseepisode)をもとに、
 勝者の行動を教師データとして学習する
 
-[Notebook](./hungry_geese_train_by_episode.ipynb)
+[Notebook](./hungry_geese_train_cnn.ipynb)
 
 
 ## 強化学習 (HandyRL)
@@ -78,25 +78,22 @@ https://www.kaggle.com/c/hungry-geese
 
 ## MCTS
 
-[こちら](https://www.kaggle.com/shoheiazuma/alphageese-baseline) を ~~パクる~~ 参考にする
+[こちら](https://www.kaggle.com/shoheiazuma/alphageese-baseline) を ~~パクる~~ 参考にして、以下の更新をした。
 
+- 探索のたびに、(探索済みの局面も)推論を行う
+    - 推論のたびに、ランダムにモデルが選ばれる(アンサンブル効果)
+- ベストな行動は、直近での推論結果のみで決める
+    - 推論結果は、4択しかなく、選択肢の差がモデルによっては付きやすいため
+- ある確率で、推論結果にルールを適用する
+    - それによって、正面衝突を回避しやすくする
 
-### ハイパーパラメータ
-
-現時点では以下がベスト
-
-```
-Cbase = 10
-Cinit = 1.0
-```
-
-[参考](https://github.com/IMOKURI/Hungry-Geese/issues/21)
 
 ## 評価
 
 モデル同士で対戦し、成績の良いモデルを submit する
 
-[Notebook](https://www.kaggle.com/imokuri/hungry-geese-eval-models)
+- [Notebook](https://www.kaggle.com/imokuri/hungry-geese-eval-models)
+- [Notebook](https://www.kaggle.com/imokuri/hungry-geese-vs)
 
 
 ## Kaggle への Submit
@@ -104,4 +101,3 @@ Cinit = 1.0
 - 学習済みモデルの upload: `make model`
 - ソースコードの upload: `make source`
 - [エージェント Notebook](./ds/submit/alpha/alpha-geese.ipynb)の submit: `make submit`
-- シュミレーション: `make eval`
