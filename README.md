@@ -3,6 +3,7 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [🦆 Hungry Geese 🦆](#-hungry-geese-)
+  - [🎉 Month 5 Winners - Goose luck! 🎉](#-month-5-winners---goose-luck-)
   - [はじめに](#%E3%81%AF%E3%81%98%E3%82%81%E3%81%AB)
   - [ソリューション](#%E3%82%BD%E3%83%AA%E3%83%A5%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3)
   - [教師あり学習](#%E6%95%99%E5%B8%AB%E3%81%82%E3%82%8A%E5%AD%A6%E7%BF%92)
@@ -13,7 +14,6 @@
       - [ハイパーパラメータ](#%E3%83%8F%E3%82%A4%E3%83%91%E3%83%BC%E3%83%91%E3%83%A9%E3%83%A1%E3%83%BC%E3%82%BF)
       - [対戦相手](#%E5%AF%BE%E6%88%A6%E7%9B%B8%E6%89%8B)
   - [MCTS](#mcts)
-    - [ハイパーパラメータ](#%E3%83%8F%E3%82%A4%E3%83%91%E3%83%BC%E3%83%91%E3%83%A9%E3%83%A1%E3%83%BC%E3%82%BF-1)
   - [評価](#%E8%A9%95%E4%BE%A1)
   - [Kaggle への Submit](#kaggle-%E3%81%B8%E3%81%AE-submit)
 
@@ -22,6 +22,13 @@
 # 🦆 Hungry Geese 🦆
 
 https://www.kaggle.com/c/hungry-geese
+
+## 🎉 Month 5 Winners - Goose luck! 🎉
+
+[Congratulations to our Month 5 Winners - Goose luck!](https://www.kaggle.com/c/hungry-geese/discussion/248986)
+
+https://twitter.com/imokurity/status/1408578446645547012
+
 
 ## はじめに
 
