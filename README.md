@@ -23,6 +23,7 @@
 
 https://www.kaggle.com/c/hungry-geese
 
+
 ## 🎉 Month 5 Winners - Goose luck! 🎉
 
 [Congratulations to our Month 5 Winners - Goose luck!](https://www.kaggle.com/c/hungry-geese/discussion/248986)
@@ -34,9 +35,12 @@ https://twitter.com/imokurity/status/1408578446645547012
 
 このレポジトリは [HandyRL](https://github.com/DeNA/HandyRL) の fork です
 
-## ソリューション
 
-- 教師あり学習 + 強化学習 + MCTS
+## 私のソリューション
+
+- 教師あり学習 + 強化学習 + MCTS (rating 1200くらい)
+
+> チームのベストソリューションは、また別です。。😂
 
 
 ## 教師あり学習
