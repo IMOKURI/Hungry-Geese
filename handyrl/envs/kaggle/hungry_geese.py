@@ -57,7 +57,7 @@ class GeeseNetAlpha(nn.Module):
         super().__init__()
 
         layers = 12
-        filters = 32
+        filters = 48
         dim = filters * 5 + 30
 
         self.embed_step = nn.Embedding(5, 3)
@@ -66,13 +66,18 @@ class GeeseNetAlpha(nn.Module):
         self.embed_diff_head = nn.Embedding(9, 4)
 
         self.conv0 = TorusConv2d(25, filters, (3, 3))
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)])
+        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3)) for _ in range(layers)])
         self.conv1 = TorusConv2d(filters, filters, (5, 5))
+
+        # self.attention = nn.MultiheadAttention(dim, 1)
 
         self.head_p1 = nn.Linear(dim, dim // 2, bias=True)
         self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
         self.head_v1 = nn.Linear(dim, dim // 2, bias=True)
         self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
+
+        self.bn_p1 = nn.BatchNorm1d(dim // 2)
+        self.bn_v1 = nn.BatchNorm1d(dim // 2)
 
     def forward(self, x, _=None):
         x_feats = x[:, -1].view(x.size(0), -1).long()
@@ -116,10 +121,12 @@ class GeeseNetAlpha(nn.Module):
             1,
         ).view(1, h.size(0), -1)
 
-        h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
+        # h, _ = self.attention(h, h, h)
+
+        h_p = F.relu_(self.bn_p1(self.head_p1(h.view(x.size(0), -1))))
         p = self.head_p2(h_p)
 
-        h_v = F.relu_(self.head_v1(h.view(x.size(0), -1)))
+        h_v = F.relu_(self.bn_v1(self.head_v1(h.view(x.size(0), -1))))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -169,7 +176,7 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_alpha_model("weights/geese_net_fold1_best.pth")
+pre_train_model = get_alpha_model("weights/geese_net_fold0_best.pth")
 
 
 class Environment(BaseEnvironment):
