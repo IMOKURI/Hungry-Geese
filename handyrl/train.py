@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torch.distributions as dist
 import torch.optim as optim
 import psutil
+import wandb
 
 from .environment import prepare_env, make_env
 from .util import map_r, bimap_r, trimap_r, rotate
@@ -397,6 +398,8 @@ class Trainer:
             self.steps += 1
 
         print('loss = %s' % ' '.join([k + ':' + '%.5f' % (l / data_cnt) for k, l in loss_sum.items()]))
+        for k, l in loss_sum.items():
+            wandb.log({f"{k} loss": (l / data_cnt)})
 
         self.data_cnt_ema = self.data_cnt_ema * 0.8 + data_cnt / (1e-2 + batch_cnt) * 0.2
         for param_group in self.optimizer.param_groups:
@@ -541,6 +544,7 @@ class Learner:
             n, r, r2 = self.results[self.model_era]
             mean = r / (n + 1e-6)
             print('win rate = %.3f (%.1f / %d)' % ((mean + 1) / 2, (r + n) / 2, n))
+            wandb.log({"win rate": (mean + 1) / 2})
 
         if self.model_era not in self.generation_results:
             print('generation stats = Nan (0)')
@@ -549,6 +553,7 @@ class Learner:
             mean = r / (n + 1e-6)
             std = (r2 / (n + 1e-6) - mean ** 2) ** 0.5
             print('generation stats = %.3f +- %.3f' % (mean, std))
+            wandb.log({"generation stats": mean})
 
         model, steps = self.trainer.update()
         if model is None:

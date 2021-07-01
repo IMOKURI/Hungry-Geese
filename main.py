@@ -23,6 +23,28 @@ if __name__ == '__main__':
         from handyrl.train import train_main as main
         main(args)
     elif mode == '--train-server' or mode == '-ts':
+        import wandb
+
+        config_defaults = {
+            "gamma": args["train_args"]["gamma"],
+            "forward_steps": args["train_args"]["forward_steps"],
+            "entropy_regularization": args["train_args"]["entropy_regularization"],
+            "entropy_regularization_decay": args["train_args"]["entropy_regularization_decay"],
+            "update_episodes": args["train_args"]["update_episodes"],
+            "batch_size": args["train_args"]["batch_size"],
+            "minimum_episodes": args["train_args"]["minimum_episodes"],
+            "maximum_episodes": args["train_args"]["maximum_episodes"],
+            "lambda": args["train_args"]["lambda"],
+            "policy_target": args["train_args"]["policy_target"],
+            "value_target": args["train_args"]["value_target"],
+            "seed": args["train_args"]["seed"],
+        }
+
+        if args["train_args"]["debug"]:
+            wandb.init(project="hungry-geese-handyrl", config=config_defaults, mode="disabled")
+        else:
+            wandb.init(project="hungry-geese-handyrl", config=config_defaults)
+
         from handyrl.train import train_server_main as main
         main(args)
     elif mode == '--worker' or mode == '-w':
