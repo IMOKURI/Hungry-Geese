@@ -537,6 +537,7 @@ class Learner:
         # call update to every component
         print()
         print('epoch %d' % self.model_era)
+        wandb.log({"epoch": self.model_era})
 
         if self.model_era not in self.results:
             print('win rate = Nan (0)')
