@@ -537,7 +537,6 @@ class Learner:
         # call update to every component
         print()
         print('epoch %d' % self.model_era)
-        wandb.log({"epoch": self.model_era})
 
         if self.model_era not in self.results:
             print('win rate = Nan (0)')
@@ -545,7 +544,7 @@ class Learner:
             n, r, r2 = self.results[self.model_era]
             mean = r / (n + 1e-6)
             print('win rate = %.3f (%.1f / %d)' % ((mean + 1) / 2, (r + n) / 2, n))
-            wandb.log({"win rate": (mean + 1) / 2})
+            wandb.log({"epoch": self.model_era, "win rate": (mean + 1) / 2})
 
         if self.model_era not in self.generation_results:
             print('generation stats = Nan (0)')
@@ -554,7 +553,7 @@ class Learner:
             mean = r / (n + 1e-6)
             std = (r2 / (n + 1e-6) - mean ** 2) ** 0.5
             print('generation stats = %.3f +- %.3f' % (mean, std))
-            wandb.log({"generation stats": mean})
+            wandb.log({"epoch": self.model_era, "generation stats": mean})
 
         model, steps = self.trainer.update()
         if model is None:
