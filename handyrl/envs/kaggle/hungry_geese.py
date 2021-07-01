@@ -65,19 +65,19 @@ class GeeseNetAlpha(nn.Module):
         self.embed_diff_len = nn.Embedding(7, 4)
         self.embed_diff_head = nn.Embedding(9, 4)
 
-        self.conv0 = TorusConv2d(25, filters, (3, 3))
+        self.conv0 = TorusConv2d(25, filters, (3, 3), False, False)
         self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3)) for _ in range(layers)])
-        self.conv1 = TorusConv2d(filters, filters, (5, 5))
+        self.conv1 = TorusConv2d(filters, filters, (5, 5), False, False)
 
         # self.attention = nn.MultiheadAttention(dim, 1)
 
-        self.head_p1 = nn.Linear(dim, dim // 2, bias=True)
+        self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
         self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
-        self.head_v1 = nn.Linear(dim, dim // 2, bias=True)
+        self.head_v1 = nn.Linear(dim, dim // 2, bias=False)
         self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
 
-        self.bn_p1 = nn.BatchNorm1d(dim // 2)
-        self.bn_v1 = nn.BatchNorm1d(dim // 2)
+        # self.bn_p1 = nn.BatchNorm1d(dim // 2)
+        # self.bn_v1 = nn.BatchNorm1d(dim // 2)
 
     def forward(self, x, _=None):
         x_feats = x[:, -1].view(x.size(0), -1).long()
@@ -123,10 +123,12 @@ class GeeseNetAlpha(nn.Module):
 
         # h, _ = self.attention(h, h, h)
 
-        h_p = F.relu_(self.bn_p1(self.head_p1(h.view(x.size(0), -1))))
+        # h_p = F.relu_(self.bn_p1(self.head_p1(h.view(x.size(0), -1))))
+        h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
         p = self.head_p2(h_p)
 
-        h_v = F.relu_(self.bn_v1(self.head_v1(h.view(x.size(0), -1))))
+        # h_v = F.relu_(self.bn_v1(self.head_v1(h.view(x.size(0), -1))))
+        h_v = F.relu_(self.head_v1(h.view(x.size(0), -1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
@@ -176,7 +178,7 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_alpha_model("./weights/geese_net_alpha_fold0_best.pth")
+pre_train_model = get_smart_model() # get_alpha_model("./weights/geese_net_alpha_fold0_best.pth")
 
 
 class Environment(BaseEnvironment):

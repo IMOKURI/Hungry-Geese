@@ -27,7 +27,7 @@ train_args:
     value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
     restart_epoch: 0
-    debug: False
+    debug: True
 
 worker_args:
     server_address: '127.0.0.1'
