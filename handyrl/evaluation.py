@@ -126,9 +126,9 @@ class Evaluator:
     def __init__(self, env, args):
         self.env = env
         self.args = args
-        self.default_agent = RuleBasedAgentSmartGeese()  # RuleBasedAgent, trained agent, etc.
-        # model = pre_train_model
-        # self.default_agent = Agent(model, self.args["observation"])
+        # self.default_agent = RuleBasedAgentSmartGeese()  # RuleBasedAgent, trained agent, etc.
+        model = pre_train_model
+        self.default_agent = Agent(model, self.args["observation"])
 
     def execute(self, models, args):
         agents = {}
