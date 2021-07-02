@@ -7,7 +7,6 @@
 # wrapper of Hungry Geese environment from kaggle
 
 import importlib
-import itertools
 import random
 from collections import defaultdict
 
@@ -24,18 +23,21 @@ from .geese.smart_goose import model as smart_model
 
 
 class TorusConv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, do=False, bn=True):
+    def __init__(self, input_dim, output_dim, kernel_size, bn):
         super().__init__()
         self.edge_size = (kernel_size[0] // 2, kernel_size[1] // 2)
         self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
-        self.do = nn.Dropout2d(p=0.1) if do else None
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
-        h = torch.cat([x[:, :, :, -self.edge_size[1] :], x, x[:, :, :, : self.edge_size[1]]], dim=3)
-        h = torch.cat([h[:, :, -self.edge_size[0] :], h, h[:, :, : self.edge_size[0]]], dim=2)
+        h = torch.cat(
+            [x[:, :, :, -self.edge_size[1] :], x, x[:, :, :, : self.edge_size[1]]],
+            dim=3,
+        )
+        h = torch.cat(
+            [h[:, :, -self.edge_size[0] :], h, h[:, :, : self.edge_size[0]]], dim=2
+        )
         h = self.conv(h)
-        h = self.do(h) if self.do is not None else h
         h = self.bn(h) if self.bn is not None else h
         return h
 
@@ -43,7 +45,9 @@ class TorusConv2d(nn.Module):
 class Conv2d(nn.Module):
     def __init__(self, input_dim, output_dim, kernel_size, bn=True, stride=1):
         super().__init__()
-        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size, stride=stride)
+        self.conv = nn.Conv2d(
+            input_dim, output_dim, kernel_size=kernel_size, stride=stride
+        )
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
@@ -55,81 +59,23 @@ class Conv2d(nn.Module):
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
+        layers, filters = 12, 32
 
-        layers = 12
-        filters = 48
-        dim = filters * 5 + 30
-
-        self.embed_step = nn.Embedding(5, 3)
-        self.embed_hunger = nn.Embedding(5, 3)
-        self.embed_diff_len = nn.Embedding(7, 4)
-        self.embed_diff_head = nn.Embedding(9, 4)
-
-        self.conv0 = TorusConv2d(25, filters, (3, 3), False, False)
-        self.blocks = nn.ModuleList([TorusConv2d(filters, filters, (3, 3)) for _ in range(layers)])
-        self.conv1 = TorusConv2d(filters, filters, (5, 5), False, False)
-
-        # self.attention = nn.MultiheadAttention(dim, 1)
-
-        self.head_p1 = nn.Linear(dim, dim // 2, bias=False)
-        self.head_p2 = nn.Linear(dim // 2, 4, bias=False)
-        self.head_v1 = nn.Linear(dim, dim // 2, bias=False)
-        self.head_v2 = nn.Linear(dim // 2, 1, bias=False)
-
-        # self.bn_p1 = nn.BatchNorm1d(dim // 2)
-        # self.bn_v1 = nn.BatchNorm1d(dim // 2)
+        self.conv0 = TorusConv2d(30, filters, (3, 3), True)
+        self.blocks = nn.ModuleList(
+            [TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)]
+        )
+        self.head_p = nn.Linear(filters, 4, bias=False)
+        self.head_v = nn.Linear(filters * 2, 1, bias=False)
 
     def forward(self, x, _=None):
-        x_feats = x[:, -1].view(x.size(0), -1).long()
-
-        # Embedding for features
-        e_step = self.embed_step(x_feats[:, 0])
-        e_hung = self.embed_hunger(x_feats[:, 1])
-        e_diff_l = self.embed_diff_len(x_feats[:, 2:5]).view(x.size(0), -1)
-        e_diff_h = self.embed_diff_head(x_feats[:, 5:8]).view(x.size(0), -1)
-
-        x = x[:, :-1].float()
-
-        # CNN for observation
         h = F.relu_(self.conv0(x))
-
         for block in self.blocks:
             h = F.relu_(h + block(h))
-
-        h = F.relu_(h + self.conv1(h))
-
-        # Extract head position
         h_head = (h * x[:, :1]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head2 = (h * x[:, 1:2]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head3 = (h * x[:, 2:3]).view(h.size(0), h.size(1), -1).sum(-1)
-        h_head4 = (h * x[:, 3:4]).view(h.size(0), h.size(1), -1).sum(-1)
         h_avg = h.view(h.size(0), h.size(1), -1).mean(-1)
-
-        # Merge features
-        h = torch.cat(
-            [
-                h_head,
-                h_head2,
-                h_head3,
-                h_head4,
-                h_avg,
-                e_step,
-                e_hung,
-                e_diff_l,
-                e_diff_h,
-            ],
-            1,
-        ).view(1, h.size(0), -1)
-
-        # h, _ = self.attention(h, h, h)
-
-        # h_p = F.relu_(self.bn_p1(self.head_p1(h.view(x.size(0), -1))))
-        h_p = F.relu_(self.head_p1(h.view(x.size(0), -1)))
-        p = self.head_p2(h_p)
-
-        # h_v = F.relu_(self.bn_v1(self.head_v1(h.view(x.size(0), -1))))
-        h_v = F.relu_(self.head_v1(h.view(x.size(0), -1)))
-        v = torch.tanh(self.head_v2(h_v))
+        p = self.head_p(h_head)
+        v = torch.tanh(self.head_v(torch.cat([h_head, h_avg], 1)))
 
         return {"policy": p, "value": v}
 
@@ -157,7 +103,7 @@ class RandomModel(nn.Module):
         p = torch.rand(len(x), 4)
         p = p * torch.stack([north, south, west, east], axis=1)
         v = torch.rand(len(x), 1)
-        return {'policy': p, 'value': v}
+        return {"policy": p, "value": v}
 
 
 def get_random_model():
@@ -178,11 +124,13 @@ def get_alpha_model(path):
 
 random_model_model = get_random_model()
 smart_model_model = get_smart_model()
-pre_train_model = get_smart_model() # get_alpha_model("./weights/geese_net_alpha_fold0_best.pth")
+pre_train_model = (
+    get_smart_model()
+)  # get_alpha_model("./weights/geese_net_alpha_fold0_best.pth")
 
 
 class Environment(BaseEnvironment):
-    ACTION = ['NORTH', 'SOUTH', 'WEST', 'EAST']
+    ACTION = ["NORTH", "SOUTH", "WEST", "EAST"]
     NUM_AGENTS = 4
     NUM_ROW = 7
     NUM_COL = 11
@@ -238,59 +186,64 @@ class Environment(BaseEnvironment):
 
     def __str__(self):
         # output state
-        obs = self.obs_list[-1][0]['observation']
-        colors = ['\033[33m', '\033[34m', '\033[32m', '\033[31m']
-        color_end = '\033[0m'
+        obs = self.obs_list[-1][0]["observation"]
+        colors = ["\033[33m", "\033[34m", "\033[32m", "\033[31m"]
+        color_end = "\033[0m"
 
         def check_cell(pos):
-            for i, geese in enumerate(obs['geese']):
+            for i, geese in enumerate(obs["geese"]):
                 if pos in geese:
                     if pos == geese[0]:
-                        return i, 'h'
+                        return i, "h"
                     if pos == geese[-1]:
-                        return i, 't'
+                        return i, "t"
                     index = geese.index(pos)
                     pos_prev = geese[index - 1] if index > 0 else None
                     pos_next = geese[index + 1] if index < len(geese) - 1 else None
-                    directions = [self.direction(pos, pos_prev), self.direction(pos, pos_next)]
+                    directions = [
+                        self.direction(pos, pos_prev),
+                        self.direction(pos, pos_next),
+                    ]
                     return i, directions
-            if pos in obs['food']:
-                return 'f'
+            if pos in obs["food"]:
+                return "f"
             return None
 
         def cell_string(cell):
             if cell is None:
-                return '.'
-            elif cell == 'f':
-                return 'f'
+                return "."
+            elif cell == "f":
+                return "f"
             else:
                 index, directions = cell
-                if directions == 'h':
-                    return colors[index] + '@' + color_end
-                elif directions == 't':
-                    return colors[index] + '*' + color_end
+                if directions == "h":
+                    return colors[index] + "@" + color_end
+                elif directions == "t":
+                    return colors[index] + "*" + color_end
                 elif max(directions) < 2:
-                    return colors[index] + '|' + color_end
+                    return colors[index] + "|" + color_end
                 elif min(directions) >= 2:
-                    return colors[index] + '-' + color_end
+                    return colors[index] + "-" + color_end
                 else:
-                    return colors[index] + '+' + color_end
+                    return colors[index] + "+" + color_end
 
         cell_status = [check_cell(pos) for pos in range(7 * 11)]
 
-        s = 'turn %d\n' % len(self.obs_list)
+        s = "turn %d\n" % len(self.obs_list)
         for x in range(7):
             for y in range(11):
                 pos = x * 11 + y
                 s += cell_string(cell_status[pos])
-            s += '\n'
-        for i, geese in enumerate(obs['geese']):
-            s += colors[i] + str(len(geese) or '-') + color_end + ' '
+            s += "\n"
+        for i, geese in enumerate(obs["geese"]):
+            s += colors[i] + str(len(geese) or "-") + color_end + " "
         return s
 
     def step(self, actions):
         # state transition
-        obs = self.env.step([self.action2str(actions.get(p, None) or 0) for p in self.players()])
+        obs = self.env.step(
+            [self.action2str(actions.get(p, None) or 0) for p in self.players()]
+        )
         self.update((obs, actions), False)
 
     def diff_info(self, _):
@@ -298,12 +251,12 @@ class Environment(BaseEnvironment):
 
     def turns(self):
         # players to move
-        return [p for p in self.players() if self.obs_list[-1][p]['status'] == 'ACTIVE']
+        return [p for p in self.players() if self.obs_list[-1][p]["status"] == "ACTIVE"]
 
     def terminal(self):
         # check whether terminal state or not
         for obs in self.obs_list[-1]:
-            if obs['status'] == 'ACTIVE':
+            if obs["status"] == "ACTIVE":
                 return False
         return True
 
@@ -364,7 +317,7 @@ class Environment(BaseEnvironment):
     def outcome(self):
         # return terminal outcomes
         # 1st: 1.00 2nd: 0.33 3rd: -0.33 4th: -1.00
-        rewards = {o['observation']['index']: o['reward'] for o in self.obs_list[-1]}
+        rewards = {o["observation"]["index"]: o["reward"] for o in self.obs_list[-1]}
         outcomes = {p: 0.0 for p in self.players()}
         for p, r in rewards.items():
             for pp, rr in rewards.items():
@@ -387,27 +340,45 @@ class Environment(BaseEnvironment):
         return list(range(self.NUM_AGENTS))
 
     def rule_based_action(self, player):
-        from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
-        action_map = {'N': Action.NORTH, 'S': Action.SOUTH, 'W': Action.WEST, 'E': Action.EAST}
+        from kaggle_environments.envs.hungry_geese.hungry_geese import (
+            Action, Configuration, GreedyAgent, Observation)
 
-        agent = GreedyAgent(Configuration({'rows': 7, 'columns': 11}))
-        agent.last_action = action_map[self.ACTION[self.last_actions[player]]
-                                       [0]] if player in self.last_actions else None
-        obs = {**self.obs_list[-1][0]['observation'], **self.obs_list[-1][player]['observation']}
+        action_map = {
+            "N": Action.NORTH,
+            "S": Action.SOUTH,
+            "W": Action.WEST,
+            "E": Action.EAST,
+        }
+
+        agent = GreedyAgent(Configuration({"rows": 7, "columns": 11}))
+        agent.last_action = (
+            action_map[self.ACTION[self.last_actions[player]][0]]
+            if player in self.last_actions
+            else None
+        )
+        obs = {
+            **self.obs_list[-1][0]["observation"],
+            **self.obs_list[-1][player]["observation"],
+        }
         action = agent(Observation(obs))
         return self.ACTION.index(action)
 
     def rule_based_action_smart_geese(self, player, goose=None):
-        from kaggle_environments.envs.hungry_geese.hungry_geese import Observation, Configuration, Action, GreedyAgent
+        from kaggle_environments.envs.hungry_geese.hungry_geese import (
+            Action, Configuration, GreedyAgent, Observation)
+
         if goose is None:
-            agent_path = 'handyrl.envs.kaggle.geese.smart_goose'
+            agent_path = "handyrl.envs.kaggle.geese.smart_goose"
         else:
-            agent_path = 'handyrl.envs.kaggle.geese.' + goose
+            agent_path = "handyrl.envs.kaggle.geese." + goose
         agent_module = importlib.import_module(agent_path)
         if agent_module is None:
             print("No environment %s" % agent_path)
 
-        obs = {**self.obs_list[-1][0]['observation'], **self.obs_list[-1][player]['observation']}
+        obs = {
+            **self.obs_list[-1][0]["observation"],
+            **self.obs_list[-1][player]["observation"],
+        }
         action = agent_module.agent(Observation(obs), None)
         return self.ACTION.index(action)
 
@@ -439,9 +410,9 @@ class Environment(BaseEnvironment):
         # obses.append(self.observation_centering_head(player))
         obses.append(self.observation_reverse_pos(player))
         obses.append(self.observation_disappear_next(player))
-        # obses.append(self.observation_num_step(player))
-        # obses.append(self.observation_length(player))
-        obses.append(self.observation_features(player))
+        obses.append(self.observation_num_step(player))
+        obses.append(self.observation_length(player))
+        # obses.append(self.observation_features(player))
         x = np.concatenate(obses)
         return x
 
@@ -450,9 +421,9 @@ class Environment(BaseEnvironment):
             player = 0
 
         b = np.zeros((self.NUM_AGENTS * 4 + 1, 7 * 11), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        obs = self.obs_list[-1][0]["observation"]
 
-        for p, geese in enumerate(obs['geese']):
+        for p, geese in enumerate(obs["geese"]):
             pid = (p - player) % self.NUM_AGENTS
 
             # head position
@@ -467,15 +438,15 @@ class Environment(BaseEnvironment):
 
         # previous head position
         if len(self.obs_list) > 1:
-            obs_prev = self.obs_list[-2][0]['observation']
-            for p, geese in enumerate(obs_prev['geese']):
+            obs_prev = self.obs_list[-2][0]["observation"]
+            for p, geese in enumerate(obs_prev["geese"]):
                 pid = (p - player) % self.NUM_AGENTS
 
                 for pos in geese[:1]:
                     b[12 + pid, pos] = 1
 
         # food
-        for pos in obs['food']:
+        for pos in obs["food"]:
             b[16, pos] = 1
 
         return b.reshape(-1, 7, 11)
@@ -484,32 +455,50 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((self.NUM_AGENTS * 4 + 1, self.NUM_ROW, self.NUM_COL), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        b = np.zeros(
+            (self.NUM_AGENTS * 4 + 1, self.NUM_ROW, self.NUM_COL), dtype=np.float32
+        )
+        obs = self.obs_list[-1][0]["observation"]
 
-        player_goose_head = obs['geese'][player][0]
+        player_goose_head = obs["geese"][player][0]
         o_row, o_col = self.to_offset(player_goose_head)
 
-        for p, geese in enumerate(obs['geese']):
+        for p, geese in enumerate(obs["geese"]):
             # head position
             for pos in geese[:1]:
-                b[0 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                b[
+                    0 + (p - player) % self.NUM_AGENTS,
+                    self.to_row(o_row, pos),
+                    self.to_col(o_col, pos),
+                ] = 1
             # tip position
             for pos in geese[-1:]:
-                b[4 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                b[
+                    4 + (p - player) % self.NUM_AGENTS,
+                    self.to_row(o_row, pos),
+                    self.to_col(o_col, pos),
+                ] = 1
             # whole position
             for pos in geese:
-                b[8 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                b[
+                    8 + (p - player) % self.NUM_AGENTS,
+                    self.to_row(o_row, pos),
+                    self.to_col(o_col, pos),
+                ] = 1
 
         # previous head position
         if len(self.obs_list) > 1:
-            obs_prev = self.obs_list[-2][0]['observation']
-            for p, geese in enumerate(obs_prev['geese']):
+            obs_prev = self.obs_list[-2][0]["observation"]
+            for p, geese in enumerate(obs_prev["geese"]):
                 for pos in geese[:1]:
-                    b[12 + (p - player) % self.NUM_AGENTS, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
+                    b[
+                        12 + (p - player) % self.NUM_AGENTS,
+                        self.to_row(o_row, pos),
+                        self.to_col(o_col, pos),
+                    ] = 1
 
         # food
-        for pos in obs['food']:
+        for pos in obs["food"]:
             b[16, self.to_row(o_row, pos), self.to_col(o_col, pos)] = 1
 
         return b
@@ -522,9 +511,9 @@ class Environment(BaseEnvironment):
             player = 0
 
         b = np.zeros((self.NUM_AGENTS, 7 * 11), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        obs = self.obs_list[-1][0]["observation"]
 
-        for p, geese in enumerate(obs['geese']):
+        for p, geese in enumerate(obs["geese"]):
             pid = (p - player) % self.NUM_AGENTS
 
             # whole position reverse
@@ -542,7 +531,7 @@ class Environment(BaseEnvironment):
             player = 0
 
         b = np.zeros((self.NUM_AGENTS, 7 * 11), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        obs = self.obs_list[-1][0]["observation"]
         step = obs["step"]
 
         # foodを食べる可能性があるか。
@@ -553,7 +542,7 @@ class Environment(BaseEnvironment):
                     eat_food_possibility[p] = 1
 
         if (step % 40) == 39:  # 1つ短くなる
-            for p, geese in enumerate(obs['geese']):
+            for p, geese in enumerate(obs["geese"]):
                 pid = (p - player) % self.NUM_AGENTS
 
                 if eat_food_possibility[p]:  # 尻尾が1、尻尾の１つ前0.5
@@ -586,12 +575,12 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((1, 7, 11), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        b = np.zeros((2, 7, 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]["observation"]
         step = obs["step"]
 
-        b[:, :, :5] = (step % 200) / 199
-        b[:, :, 5:] = (step % 40) / 39
+        b[0, :, :] = (step - 188) / 10 if step > 188 else 0
+        b[1, :, :] = (step % 40 - 29) / 10 if step % 40 > 29 else 0
 
         return b
 
@@ -599,20 +588,17 @@ class Environment(BaseEnvironment):
         if player is None:
             player = 0
 
-        b = np.zeros((2, 7, 11), dtype=np.float32)
-        obs = self.obs_list[-1][0]['observation']
+        b = np.zeros((3, 7, 11), dtype=np.float32)
+        obs = self.obs_list[-1][0]["observation"]
 
-        my_length = len(obs['geese'][player])
-        opposite1_length = len(obs['geese'][(player + 1) % self.NUM_AGENTS])
-        opposite2_length = len(obs['geese'][(player + 2) % self.NUM_AGENTS])
-        opposite3_length = len(obs['geese'][(player + 3) % self.NUM_AGENTS])
+        my_length = len(obs["geese"][player])
+        o1_length = len(obs["geese"][(player + 1) % 4])
+        o2_length = len(obs["geese"][(player + 2) % 4])
+        o3_length = len(obs["geese"][(player + 3) % 4])
 
-        b[0] = my_length / 10
-        max_opposite_length = max(opposite1_length, opposite2_length, opposite3_length)
-        b[1, :, 0:2] = (my_length - max_opposite_length) / 10
-        b[1, :, 2:5] = (my_length - opposite1_length) / 10
-        b[1, :, 5:8] = (my_length - opposite2_length) / 10
-        b[1, :, 8:11] = (my_length - opposite3_length) / 10
+        b[0, :, :] = max(min((my_length - o1_length) * 0.1 + 0.5, 1.0), -1.0)
+        b[1, :, :] = max(min((my_length - o2_length) * 0.1 + 0.5, 1.0), -1.0)
+        b[2, :, :] = max(min((my_length - o3_length) * 0.1 + 0.5, 1.0), -1.0)
 
         return b
 
@@ -621,7 +607,7 @@ class Environment(BaseEnvironment):
             player = 0
 
         b = np.zeros((7 * 11), dtype=np.float16)
-        obs = self.obs_list[-1][0]['observation']
+        obs = self.obs_list[-1][0]["observation"]
         step = obs["step"]
 
         my_goose = obs["geese"][player]
@@ -664,7 +650,7 @@ class Environment(BaseEnvironment):
         return b.reshape(1, 7, 11)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     e = Environment()
     for _ in range(100):
         e.reset()
