@@ -23,12 +23,10 @@ from .geese.smart_goose import model as smart_model
 
 
 class TorusConv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn, groups=1):
+    def __init__(self, input_dim, output_dim, kernel_size, bn):
         super().__init__()
         self.edge_size = (kernel_size[0] // 2, kernel_size[1] // 2)
-        self.conv = nn.Conv2d(
-            input_dim, output_dim, kernel_size=kernel_size, groups=groups
-        )
+        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
         self.bn = nn.BatchNorm2d(output_dim) if bn else None
 
     def forward(self, x):
@@ -42,50 +40,6 @@ class TorusConv2d(nn.Module):
         h = self.conv(h)
         h = self.bn(h) if self.bn is not None else h
         return h
-
-
-class Conv2d(nn.Module):
-    def __init__(self, input_dim, output_dim, kernel_size, bn):
-        super().__init__()
-        self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=kernel_size)
-        self.bn = nn.BatchNorm2d(output_dim) if bn else None
-
-    def forward(self, x):
-        h = self.conv(x)
-        h = self.bn(h) if self.bn is not None else h
-        return h
-
-
-class Bottleneck(nn.Module):
-    def __init__(self, input_dim=256, hidden_dim=64, groups=1, bn=True):
-        super().__init__()
-        self.conv1x1_0 = Conv2d(input_dim, hidden_dim, (1, 1), bn)
-        self.conv3x3 = TorusConv2d(hidden_dim, hidden_dim, (3, 3), bn, groups)
-        self.conv1x1_1 = Conv2d(hidden_dim, input_dim, (1, 1), bn)
-
-    def forward(self, x):
-        h = F.relu_(self.conv1x1_0(x))
-        h = F.relu_(self.conv3x3(h))
-        h = self.conv1x1_1(h)
-        return h
-
-
-class ChannelSELayer(nn.Module):
-    def __init__(self, channel, reduction=8):
-        super().__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
 
 
 class GeeseNet(nn.Module):
@@ -112,21 +66,16 @@ class GeeseNet(nn.Module):
         return {"policy": p, "value": v}
 
 
-
 class GeeseNetAlpha(nn.Module):
     def __init__(self):
         super().__init__()
         layers, filters = 12, 32
-        hidden = filters // 4
-        dim1 = filters * 5
+        dim1 = filters * 2
         dim2 = dim1 // 2
 
         self.conv0 = TorusConv2d(30, filters, (3, 3), True)
-        self.rn_blocks = nn.ModuleList(
-            [Bottleneck(filters, hidden) for _ in range(layers)]
-        )
-        self.cse_blocks = nn.ModuleList(
-            [ChannelSELayer(filters, 4) for _ in range(layers)]
+        self.cnn_blocks = nn.ModuleList(
+            [TorusConv2d(filters, filters, (3, 3), True) for _ in range(layers)]
         )
 
         self.conv_p = TorusConv2d(filters, filters, (3, 3), True)
@@ -139,36 +88,21 @@ class GeeseNetAlpha(nn.Module):
 
     def forward(self, x, _=None):
         h = F.relu_(self.conv0(x))
-        for bottleneck, cse in zip(self.rn_blocks, self.cse_blocks):
-            h = bottleneck(h)
-            h = F.relu_(h + cse(h))
+        for cnn in self.cnn_blocks:
+            h = F.relu_(h + cnn(h))
 
         h_p = F.relu_(self.conv_p(h))
         h_head_p = (h_p * x[:, :1]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p2 = (h_p * x[:, 1:2]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p3 = (h_p * x[:, 2:3]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
-        h_head_p4 = (h_p * x[:, 3:4]).view(h_p.size(0), h_p.size(1), -1).sum(-1)
         h_avg_p = h_p.view(h_p.size(0), h_p.size(1), -1).mean(-1)
 
-        h_p = F.relu_(
-            self.head_p1(
-                torch.cat([h_head_p, h_head_p2, h_head_p3, h_head_p4, h_avg_p], 1)
-            )
-        )
+        h_p = F.relu_(self.head_p1(torch.cat([h_head_p, h_avg_p], 1)))
         p = self.head_p2(h_p)
 
         h_v = F.relu_(self.conv_v(h))
         h_head_v = (h_v * x[:, :1]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v2 = (h_v * x[:, 1:2]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v3 = (h_v * x[:, 2:3]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
-        h_head_v4 = (h_v * x[:, 3:4]).view(h_v.size(0), h_v.size(1), -1).sum(-1)
         h_avg_v = h_v.view(h_v.size(0), h_v.size(1), -1).mean(-1)
 
-        h_v = F.relu_(
-            self.head_v1(
-                torch.cat([h_head_v, h_head_v2, h_head_v3, h_head_v4, h_avg_v], 1)
-            )
-        )
+        h_v = F.relu_(self.head_v1(torch.cat([h_head_v, h_avg_v], 1)))
         v = torch.tanh(self.head_v2(h_v))
 
         return {"policy": p, "value": v}
