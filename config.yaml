@@ -15,7 +15,7 @@ train_args:
     entropy_regularization_decay: 0.1
     update_episodes: 400
     batch_size: 800
-    minimum_episodes: 10000
+    minimum_episodes: 200
     maximum_episodes: 800000
     epochs: -1
     num_batchers: 8
@@ -23,8 +23,8 @@ train_args:
     worker:
         num_parallel: 6
     lambda: 0.7
-    policy_target: 'VTRACE' # 'UPGO' 'VTRACE' 'TD' 'MC'
-    value_target: 'VTRACE' # 'VTRACE' 'TD' 'MC'
+    policy_target: 'TD' # 'UPGO' 'VTRACE' 'TD' 'MC'
+    value_target: 'TD' # 'VTRACE' 'TD' 'MC'
     seed: 440
     restart_epoch: 1
     debug: False
